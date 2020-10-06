@@ -67,6 +67,7 @@ OV767X::~OV767X()
 
 int OV767X::begin(int resolution, int format, int fps)
 {
+  Serial.println("OV767X::begin");
   switch (resolution) {
     case VGA:
       _width = 640;
@@ -130,9 +131,11 @@ int OV767X::begin(int resolution, int format, int fps)
   pinMode(_hrefPin, INPUT);
   pinMode(_pclkPin, INPUT);
   pinMode(_xclkPin, OUTPUT);
+  Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
 
   for (int i = 0; i < 8; i++) {
     pinMode(_dPins[i], INPUT);
+    Serial.printf("  _dpins(%d)=%d\n", i, _dPins[i]);
   }
 
   _vsyncPort = portInputRegister(digitalPinToPort(_vsyncPin));
@@ -232,10 +235,10 @@ int OV767X::bytesPerPixel() const
 //
 void OV767X::readFrame(void* buffer)
 {
-uint32_t ulPin = 33; // P1.xx set of GPIO is in 'pin' 32 and above
-NRF_GPIO_Type * port;
+//uint32_t ulPin = 33; // P1.xx set of GPIO is in 'pin' 32 and above
+//NRF_GPIO_Type * port;
 
-  port = nrf_gpio_pin_port_decode(&ulPin);
+  //port = nrf_gpio_pin_port_decode(&ulPin);
 
   noInterrupts();
 
@@ -245,28 +248,37 @@ NRF_GPIO_Type * port;
   // Falling edge indicates start of frame
   while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
   while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-
+  digitalWriteFast(33, HIGH);
   for (int i = 0; i < _height; i++) {
   // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
+    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
 
     for (int j = 0; j < bytesPerRow; j++) {
       // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
+      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
 
+#if defined(__IMXRT1062__)  // Teensy 4.x
+      uint32_t in = GPIO6_DR >> 18; // read all bits in parallel
+      in = (in & 0x3) | ((in & 0x3f0)>>2);
+      digitalToggleFast(32);
+#else
       uint32_t in = port->IN; // read all bits in parallel
-
       in >>= 2; // place bits 0 and 1 at the "bottom" of the register
       in &= 0x3f03; // isolate the 8 bits we care about
       in |= (in >> 6); // combine the upper 6 and lower 2 bits
+#endif
 
       if (!(j & 1) || !_grayscale) {
         *b++ = in;
       }
-      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
+      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
     }
+    digitalToggleFast(33);
+
     while ((*_hrefPort & _hrefMask) != 0); // wait for LOW
   }
+  digitalWriteFast(33, LOW);
 
   interrupts();
 }
@@ -357,6 +369,12 @@ void OV767X::setPins(int vsync, int href, int pclk, int xclk, const int dpins[8]
 
 void OV767X::beginXClk()
 {
+  // Generates 8 MHz signal using PWM... Will speed up.
+  #if defined(__IMXRT1062__)  // Teensy 4.x
+    analogWriteFrequency(_xclkPin, 16000000.0);
+    analogWrite(_xclkPin, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer
+
+  #else
   // Generates 16 MHz signal using I2S peripheral
   NRF_I2S->CONFIG.MCKEN = (I2S_CONFIG_MCKEN_MCKEN_ENABLE << I2S_CONFIG_MCKEN_MCKEN_Pos);
   NRF_I2S->CONFIG.MCKFREQ = I2S_CONFIG_MCKFREQ_MCKFREQ_32MDIV2  << I2S_CONFIG_MCKFREQ_MCKFREQ_Pos;
@@ -366,11 +384,16 @@ void OV767X::beginXClk()
 
   NRF_I2S->ENABLE = 1;
   NRF_I2S->TASKS_START = 1;
+#endif  
 }
 
 void OV767X::endXClk()
 {
+  #if defined(__IMXRT1062__)  // Teensy 4.x
+  analogWrite(OV7670_XCLK, 0);
+  #else
   NRF_I2S->TASKS_STOP = 1;
+  #endif
 }
 
 OV767X Camera;

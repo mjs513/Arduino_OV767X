@@ -7,7 +7,7 @@
 #include <Wire.h>
 
 #ifndef OV760_DEBUG
-// #define OV760_DEBUG
+#define OV760_DEBUG
 #endif
 
 extern "C" {

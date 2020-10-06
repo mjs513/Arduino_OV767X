@@ -8,7 +8,20 @@
 #define _OV767X_H_
 
 #include <Arduino.h>
-
+#if defined(__IMXRT1062__)  // Teensy 4.x
+#define OV7670_VSYNC 2
+#define OV7670_HREF  3
+#define OV7670_PLK   4
+#define OV7670_XCLK  5
+#define OV7670_D0    14 // AD_B1_02 1.18
+#define OV7670_D1    15 // AD_B1_03 1.19
+#define OV7670_D3    16 // AD_B1_07 1.23
+#define OV7670_D2    17 // AD_B1_06 1.22
+#define OV7670_D6    20 // AD_B1_10
+#define OV7670_D7    21 // AD_B1_11
+#define OV7670_D4    22 // AD_B1_08
+#define OV7670_D5    23 // AD_B1_09
+#else
 #define OV7670_VSYNC 8
 #define OV7670_HREF  A1
 #define OV7670_PLK   A0
@@ -21,7 +34,7 @@
 #define OV7670_D5    5
 #define OV7670_D6    6
 #define OV7670_D7    4
-
+#endif
 enum
 {
   YUV422 = 0,

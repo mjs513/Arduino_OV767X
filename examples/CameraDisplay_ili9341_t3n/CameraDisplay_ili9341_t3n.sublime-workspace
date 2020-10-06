@@ -1,0 +1,744 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"printf_d",
+				"printf_debug_init"
+			],
+			[
+				"uint",
+				"uint8_t"
+			],
+			[
+				"trans",
+				"_transferWriteFill"
+			],
+			[
+				"Serial",
+				"serialEvent1"
+			],
+			[
+				"IRQ",
+				"IRQ_PRIORITY"
+			],
+			[
+				"force",
+				"force_boot_protocol"
+			],
+			[
+				"control",
+				"control_queued"
+			],
+			[
+				"id",
+				"idVendor"
+			],
+			[
+				"VA",
+				"VALID_PAGE4"
+			],
+			[
+				"oldpage",
+				"oldpageaddress_end"
+			],
+			[
+				"valid",
+				"validpage"
+			],
+			[
+				"PAGE_",
+				"PAGE_SIZE"
+			],
+			[
+				"address",
+				"addressvalue"
+			],
+			[
+				"addres",
+				"addressvalue"
+			],
+			[
+				"Vir",
+				"VirtAddress"
+			],
+			[
+				"pack",
+				"packet_length_out"
+			],
+			[
+				"length",
+				"length_before_crc"
+			],
+			[
+				"pa",
+				"packet_length_in"
+			],
+			[
+				"rxpacket",
+				"rxpacket_in"
+			],
+			[
+				"read",
+				"read_Rx_impl"
+			],
+			[
+				"rxp",
+				"rxpacket_in"
+			],
+			[
+				"len",
+				"length_adjust"
+			],
+			[
+				"tx",
+				"txpacket_in"
+			],
+			[
+				"COMM",
+				"COMM_TX_FAIL"
+			],
+			[
+				"txp",
+				"txpacket"
+			],
+			[
+				"txP",
+				"txpacket_in"
+			],
+			[
+				"mod",
+				"model_number"
+			],
+			[
+				"item",
+				"item_pointer"
+			],
+			[
+				"count",
+				"count_ids_"
+			],
+			[
+				"add",
+				"add_if_not_found"
+			],
+			[
+				"fi",
+				"findParam"
+			],
+			[
+				"ite",
+				"item_buffer_pointer"
+			],
+			[
+				"digit",
+				"digitalWrite"
+			],
+			[
+				"LE",
+				"LED_BUILTIN"
+			],
+			[
+				"ser",
+				"servo_index"
+			],
+			[
+				"report",
+				"report_any_dxl_errors"
+			],
+			[
+				"sti",
+				"still_moving"
+			],
+			[
+				"servo",
+				"servo_list"
+			],
+			[
+				"cou",
+				"count_ids_"
+			],
+			[
+				"nex",
+				"next_item_pointer"
+			],
+			[
+				"clear",
+				"clearParam"
+			],
+			[
+				"data",
+				"data_length_"
+			],
+			[
+				"buffer",
+				"buffer_size"
+			],
+			[
+				"return",
+				"return_value"
+			],
+			[
+				"ti",
+				"timeout_ms"
+			],
+			[
+				"buff",
+				"buffer_size"
+			],
+			[
+				"SER",
+				"SERIAL_BUFFER_SIZE"
+			],
+			[
+				"_",
+				"_uart_num"
+			],
+			[
+				"SERI",
+				"SERIAL_TX_BUFFER_SIZE"
+			],
+			[
+				"cb",
+				"cbLeft"
+			],
+			[
+				"tx_b",
+				"tx_buffer_aligned"
+			],
+			[
+				"size",
+				"size_t"
+			],
+			[
+				"uin",
+				"uint8_t"
+			],
+			[
+				"time",
+				"time_since_last_msg_received"
+			],
+			[
+				"ILI9341_",
+				"ILI9341_YELLOW"
+			],
+			[
+				"pu",
+				"publishVelocityCmd"
+			],
+			[
+				"sta",
+				"state_changed_"
+			],
+			[
+				"Tur",
+				"turtlebot3_msgs"
+			],
+			[
+				"advertis",
+				"advertised_"
+			],
+			[
+				"ILI",
+				"ILI9341_t3n"
+			],
+			[
+				"_dma",
+				"_dma_count_remaining"
+			],
+			[
+				"sou",
+				"sourceBuffer"
+			],
+			[
+				"0x0",
+				"0x041b"
+			],
+			[
+				"g_serv",
+				"g_servo_index_voltage"
+			],
+			[
+				"DXL_GOA",
+				"DXL_X_GOAL_VELOCITY"
+			],
+			[
+				"Re",
+				"ReportAnyErrors"
+			],
+			[
+				"servo_",
+				"servo_info_t"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "CameraDisplay_ili9341_t3n.ino",
+			"settings":
+			{
+				"buffer_size": 2239,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "CameraDisplay_ili9341_t3n.sublime-project",
+			"settings":
+			{
+				"buffer_size": 131,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+		[
+			[
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					""
+				],
+				[
+					"Packages/C++/C++ Single File.sublime-build",
+					"Run"
+				],
+				[
+					"Packages/User/Teensy.sublime-build",
+					""
+				],
+				[
+					"Packages/User/Teensy.sublime-build",
+					"Clean"
+				],
+				[
+					"Packages/User/Teensy.sublime-build",
+					"New Sketch"
+				],
+				[
+					"Packages/User/Teensy.sublime-build",
+					"Verify"
+				],
+				[
+					"Packages/User/Teensy.sublime-build",
+					"Tools Set"
+				]
+			],
+			[
+				"Packages/User/Teensy.sublime-build",
+				""
+			]
+		]
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"Package Control: ",
+				"Package Control: Disable Package"
+			],
+			[
+				"package control remov",
+				"Package Control: Remove Package"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			],
+			[
+				"s",
+				"Sort Lines"
+			],
+			[
+				"packa",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 452.0
+	},
+	"console":
+	{
+		"height": 0.0,
+		"history":
+		[
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"expanded_folders":
+	[
+		"/D/GitHub/Arduino_OV767X/examples/CameraDisplay_ili9341_t3n",
+		"/D/GitHub/Arduino_OV767X"
+	],
+	"file_history":
+	[
+		"/C/Users/kurte/Documents/Arduino/libraries/Ra8876LiteTeensy/src/RA8876_t3.cpp",
+		"/D/GitHub/teensy_loader_cli/teensy_loader_cli.c",
+		"/D/GitHub/teensy_loader_cli/README.md",
+		"/C/Users/kurte/AppData/Local/Temp/wz349d/L6470-AutoDriver-master/Libraries/Arduino/src/SparkFunAutoDriver.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/scp32403/home/ubuntu/Documents/teensy_loader_cli/teensy_loader_cli.c",
+		"/C/Users/kurte/AppData/Local/Temp/wzd0a4/firmware_slave/firmware_slave.ino",
+		"/D/GitHub/Tset/tset.cmd1",
+		"/D/GitHub/logic2-examples/README.md",
+		"/C/Users/kurte/AppData/Local/Temp/wz2008/cactus_io_BME280_I2C/cactus_io_BME280_I2C.h",
+		"/C/Users/kurte/AppData/Local/Temp/wzf01e/cactus_io_BME280_I2C/cactus_io_BME280_I2C.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/wzf01e/cactus_io_BME280_I2C/.DS_Store",
+		"/C/Users/kurte/Desktop/usbhost_shield2_XBoxOne_bind.csv",
+		"/C/Users/kurte/Desktop/SparkFun_SerLCD_Arduino_Library-master/examples/Example1-HelloWorld/Example1-HelloWorld.ino",
+		"/C/Users/kurte/Desktop/SparkFun_SerLCD_Arduino_Library-master/src/SerLCD.h",
+		"/C/Users/kurte/Documents/Arduino_Old_Stuff/Orion/Razor_Rover/Razor_Rover.ino",
+		"/C/Users/kurte/AppData/Local/Temp/wz13f2/RoboClaw/RoboClaw.h",
+		"/C/Users/kurte/Desktop/usbhost_shield2_XBoxOne_bind.txt",
+		"/C/arduino-1.8.13/hardware/arduino/avr/libraries/Wire/src/Wire.h",
+		"/C/Users/kurte/Documents/Arduino/Teensy Tests/T4X_SerialHalfDuplexEcho/T4X_SerialHalfDuplexEcho.ino",
+		"/C/Users/kurte/AppData/Local/Arduino15/packages/arduino/hardware/samd/1.8.8/libraries/Wire/Wire.cpp",
+		"/C/Users/kurte/AppData/Local/Arduino15/packages/arduino/hardware/samd/1.8.8/libraries/Wire/Wire.h",
+		"/C/Users/kurte/AppData/Local/Temp/wza759/RoboClaw/RoboClaw.cpp",
+		"/D/GitHub/Adafruit_VL53L0X/examples/vl53l0x_multi_extended/vl53l0x_multi_extended.sublime-workspace",
+		"/C/Users/kurte/AppData/Local/Temp/Tree_Show.txt",
+		"/C/Users/kurte/Desktop/Original_RadioHead/RF24configs/README",
+		"/C/Users/kurte/Desktop/Original_RadioHead/MGOSCompat/README",
+		"/C/Users/kurte/AppData/Local/Temp/availablebug-sender.ino",
+		"/C/Users/kurte/AppData/Local/Temp/availablebug-receiver.ino",
+		"/C/Users/kurte/AppData/Roaming/Sublime Text 3/Packages/WordHighlight/Word Highlight.sublime-settings",
+		"/C/Users/kurte/AppData/Roaming/Sublime Text 3/Packages/User/Word Highlight.sublime-settings",
+		"/C/Users/kurte/Documents/Arduino/Github/Open_CM_CR_Arduino_Sketches/Robotis_RC-100_Remote_test/Robotis_RC-100_Remote_test.ino",
+		"/C/Users/kurte/AppData/Local/Temp/sketch_aug10a.ino",
+		"/D/GitHub/Ra8876LiteTeensy/examples/RA8876_pictureEmbed/Teensy41_Cardlike.h",
+		"/C/arduino-1.8.13/hardware/teensy/avr/cores/teensy4/Makefile",
+		"/C/Users/kurte/AppData/Local/Temp/teensy41_pins-1.txt",
+		"/C/Users/kurte/AppData/Local/Temp/usb_private.h",
+		"/C/Users/kurte/AppData/Local/Temp/usb-1.c",
+		"/D/GitHub/Tset/TSet.cmd1",
+		"/C/Users/kurte/AppData/Local/Temp/usb.c",
+		"/D/GitHub/cores/usb_hid/usb.c",
+		"/C/Users/kurte/AppData/Local/Temp/wzd3cf/spi_master_example/timo_spi.h",
+		"/C/Users/kurte/Desktop/Buttseqs-master/sequencer.ino",
+		"/C/Users/kurte/Documents/Arduino/libraries/TeensyTimerTool/library.properties",
+		"/C/Users/kurte/AppData/Local/Temp/Snooze_SPI_issue.ino",
+		"/C/Users/kurte/AppData/Local/Temp/wzba4c/spi_master_example/spi_master_example.ino",
+		"/C/Users/kurte/AppData/Local/Temp/TeensyRTTY_June7th20.ino",
+		"/C/Users/kurte/AppData/Local/Temp/main.cpp",
+		"/D/GitHub/cores/teensy4/HardwareSerial8.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_445992/eram_spiffs_ili9488_UpdateAsyncCont_Test.ino.lst",
+		"/C/Users/kurte/Desktop/foo.txt",
+		"/C/Users/kurte/Documents/Arduino/Github/Open_CM_CR_Arduino_Sketches/Phantom_Phoenix_OpenCMR_Dynamixel2Arduino/_Phoenix_Code.h",
+		"/D/GitHub/cores/teensy4/EventResponder.cpp",
+		"/d/GitHub/teensy41_extram/extRAM_t4/extRAM_t4.h",
+		"/C/arduino-1.8.12/hardware/tools/arm/bin/foo",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_604884/SPI_test_eventResponder.ino.lst",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_604884/foo",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_855392/foo",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_445992/foo",
+		"/C/Users/kurte/AppData/Local/Temp/wz957f/SoftModem/SoftModem.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/wz957f/SoftModem/keywords.txt",
+		"/C/Users/kurte/AppData/Local/Temp/wzac82/SoftModem/SoftModem.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/wzac82/SoftModem/SoftModem.h",
+		"/C/Users/kurte/Documents/Arduino/libraries/ili9341_t3n/lbrary.json",
+		"/C/Users/kurte/Documents/Arduino/libraries/ili9341_t3n/foo.bat",
+		"/D/GitHub/cores/teensy4/analog.c",
+		"/D/GitHub/cores/teensy4/core_pins.h",
+		"/D/GitHub/cores/teensy4/digital.c",
+		"/D/GitHub/cores/teensy4/pins_arduino.h",
+		"/D/GitHub/cores/teensy4/pwm.c",
+		"/D/GitHub/cores/teensy4/usb_desc.c",
+		"/D/GitHub/Uncanny_Eyes/README.md",
+		"/D/GitHub/HX8357_t3n/library.properties",
+		"/D/GitHub/RA8875/Examples/_Teensy3/ILI_Ada_FontTest4/ILI_Ada_FontTest4.ino",
+		"/D/GitHub/Uncanny_Eyes/convert/tablegen.py",
+		"/D/GitHub/Uncanny_Eyes/convert/defaultveryLargeEye/tablegen.py",
+		"/D/GitHub/Uncanny_Eyes/convert/hextable.py",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_757545/yyy.ino.lst",
+		"/D/GitHub/cores/teensy4/DMAChannel.h",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_757545/yyy.ino.hex",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_757545/yyy.ino.TEENSY40.hex",
+		"/D/GitHub/tytools/lib/qt5/i686-win32-msvc-mt/foo.bat",
+		"/C/Users/kurte/Desktop/fpp.txt",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_757545/yyy.ino.elf",
+		"/D/GitHub/tytools/lib/qt5/i686-win32-msvc-mt/makefile",
+		"/D/Qt5/5.9.9/winrt_x86_msvc2017/lib/cmake/Qt5/Qt5ConfigVersion.cmake",
+		"/D/GitHub/tytools/build/win32/foo",
+		"/D/GitHub/cores/teensy4/HardwareSerial7.cpp",
+		"/D/GitHub/Uncanny_Eyes/convert/hextable.pyc",
+		"/D/GitHub/Tset/foo",
+		"/C/Users/kurte/AppData/Local/Temp/wz{B82769D1-D162-4C65-8D02-7FDAD2B8CF97}/Oled3d/Oled3d.ino",
+		"/C/Users/kurte/AppData/Local/Temp/Pulse_speed_test.ino",
+		"/C/Users/kurte/Documents/Arduino/libraries/SdFat/src/SdFatConfig.h",
+		"/C/Users/kurte/AppData/Local/Temp/Oled3d.zip",
+		"/C/Users/kurte/Documents/Arduino/Teensy Tests/XV_Lidar_TFT2/src/SerialCommand/SerialCommand.cpp",
+		"/D/GitHub/ADC/examples/DMA_RMS/DMA_RMS.ino",
+		"/C/Users/kurte/AppData/Local/Temp/wz22e1/2BEN2STT40_200120/2BEN2STT40_200120.ino",
+		"/C/Users/kurte/Desktop/LVGL/main.c",
+		"/C/Users/kurte/Desktop/LVGL/README.md",
+		"/C/Users/kurte/AppData/Local/Temp/wz1a97/lvgl/lvgl.h",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_8863/zzz.ino.lst",
+		"/D/GitHub/ADC/examples/ringBufferDMA/ringBufferDMA.ino",
+		"/C/Users/kurte/AppData/Local/Temp/CopyFromSD.ino",
+		"/C/Users/kurte/AppData/Local/Temp/gauge.c-1.c",
+		"/C/Users/kurte/AppData/Local/Temp/gauge.c.c",
+		"/C/Users/kurte/AppData/Local/Temp/Gauage.c",
+		"/D/GitHub/Uncanny_Eyes/convert/defaultLargeEye/default_large.h",
+		"/C/Users/kurte/AppData/Local/Temp/CalibrationSensor.ino",
+		"/C/Users/kurte/AppData/Local/Temp/wzae89/Remote/Remote.ino",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_864421/foo",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_864421/Blink_any_pin.ino.lst",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_153898/T4_RA8875_pictureEmbed.ino.sym",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_153898/T4_RA8875_pictureEmbed.ino.hex",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_274915/unc_nm",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_860472/foo_nm",
+		"/C/Users/kurte/Downloads/td_t4_top.c",
+		"/C/Users/kurte/AppData/Local/Temp/Sample.ino",
+		"/C/Users/kurte/AppData/Local/Temp/wz8fb5/Leddar/Leddar.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/wza12a/Leddar/Leddar.h",
+		"/C/Users/kurte/AppData/Local/Temp/wza12a/Leddar/Leddar.cpp",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_860472/foo.ino.eep",
+		"/C/Users/kurte/AppData/Local/Temp/wz2d21/imxrt-size.c",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_707759/uncannyEyes0.ino.sym",
+		"/C/Users/kurte/AppData/Local/Temp/imxrt-size.c",
+		"/C/Users/kurte/Downloads/ER-TFTM050-3_Datasheet.pdf",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_707759/uncannyEyes0.ino.elf",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_939326/uncannyEyes0.ino.sym",
+		"/C/Users/kurte/AppData/Local/Temp/arduino_build_939326/foo",
+		"/C/Users/kurte/Documents/Arduino/Teensy Tests/Blink_any_pin/Blink_any_pin.ino.TEENSY31.hex"
+	],
+	"find":
+	{
+		"height": 31.0
+	},
+	"find_in_files":
+	{
+		"height": 131.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "CameraDisplay_ili9341_t3n.ino",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2239,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								423,
+								423
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "CameraDisplay_ili9341_t3n.sublime-project",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 131,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								131
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/JavaScript/JSON.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 31.0
+	},
+	"input":
+	{
+		"height": 45.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 150.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"output.stino_build_panel":
+	{
+		"height": 0.0
+	},
+	"output.stino_panel":
+	{
+		"height": 0.0
+	},
+	"output.unsaved_changes":
+	{
+		"height": 328.0
+	},
+	"pinned_build_system": "",
+	"project": "CameraDisplay_ili9341_t3n.sublime-project",
+	"replace":
+	{
+		"height": 58.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"new",
+				"opencr\\cores\\arduino\\new.cpp"
+			],
+			[
+				"dyn",
+				"opencr\\libraries\\DynamixelWorkbench\\src\\dynamixel_workbench_toolbox\\dynamixel_driver.cpp"
+			],
+			[
+				"dig",
+				"cores\\arduino\\digitalWriteFast.h"
+			],
+			[
+				"timelib",
+				"avr\\libraries\\Time\\TimeLib.h"
+			],
+			[
+				"o",
+				"opencr\\libraries\\OLLO\\OLLO.cpp"
+			],
+			[
+				"sound.h",
+				"opencr\\libraries\\turtlebot3_ros_lib\\turtlebot3_msgs\\Sound.h"
+			],
+			[
+				"sensorstatemsg",
+				"turtlebot3_msgs\\msg\\SensorState.msg"
+			],
+			[
+				"ollo",
+				"opencr\\libraries\\OLLO\\OLLO.h"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 392.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 592.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 343.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
