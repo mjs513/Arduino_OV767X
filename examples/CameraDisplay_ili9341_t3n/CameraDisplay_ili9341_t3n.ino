@@ -2,7 +2,7 @@
   OV767X - Camera Test Pattern
 
   This sketch waits for the letter 'c' on the Serial Monitor,
-  it then reads a frame from the OmniVision OV7670 camera and 
+  it then reads a frame from the OmniVision OV7670 camera and
   prints the data to the Serial Monitor as a hex string.
 
   The website https://rawpixels.net - can be used the visualize the data:
@@ -31,7 +31,7 @@
       - D1 connected to 1 / TX
       - D0 connected to 10
 
-      Teensy T4.x using ILI9341_t3n library. 
+      Teensy T4.x using ILI9341_t3n library.
         OV7670_VSYNC 2
         OV7670_HREF  3
         OV7670_PLK   4
@@ -48,7 +48,7 @@
 
 
   This example code is in the public domain.
-*/
+  */
 
 #include <Arduino_OV767X.h>
 #include <ILI9341_t3n.h>
@@ -59,7 +59,8 @@
 
 uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
-
+bool g_continuous_mode = false;
+elapsedMillis g_emCycle;
 
 void setup() {
   Serial.begin(9600);
@@ -94,6 +95,7 @@ void setup() {
   Serial.println();
 
   Serial.println("Send the 'c' character to read a frame ...");
+  Serial.println("Send the 's' character to start/stop continuous display mode");
   Serial.println();
   pinMode(32, OUTPUT);
   digitalWrite(32, LOW);
@@ -103,41 +105,73 @@ void setup() {
 }
 
 void loop() {
-  if (Serial.read() == 'c') {
-    Serial.println("Reading frame");
-    Serial.println();
-    memset((uint8_t*)pixels, 0, sizeof(pixels));
-//    digitalWriteFast(32, HIGH);
+  if (Serial.available()) {
+    int ch = Serial.read();
+    while (Serial.read() != -1); // get rid of the rest...
+    switch (ch) {
+    case 'c':
+    {
+      Serial.println("Reading frame");
+      Serial.println();
+      memset((uint8_t*)pixels, 0, sizeof(pixels));
+      Camera.readFrame(pixels);
+
+
+      int numPixels = Camera.width() * Camera.height();
+      int camera_width = Camera.width();
+
+      for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
+
+      tft.fillScreen(ILI9341_BLACK);
+      tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
+
+      for (int i = 0; i < numPixels; i++) {
+        unsigned short p = pixels[i];
+
+        if (p < 0x1000) {
+          Serial.print('0');
+        }
+
+        if (p < 0x0100) {
+          Serial.print('0');
+        }
+
+        if (p < 0x0010) {
+          Serial.print('0');
+        }
+
+        Serial.print(p, HEX);
+        if ((i % camera_width) == (camera_width - 1)) Serial.println();
+      }
+      g_continuous_mode = false;
+      Serial.println();
+      break;
+    }
+    case 's':
+      if (g_continuous_mode) {
+        g_continuous_mode = false;
+        Serial.println("*** Continuous mode turned off");
+        tft.useFrameBuffer(false);
+      } else {
+        g_continuous_mode = true;
+        tft.useFrameBuffer(true);
+        Serial.println("*** Continuous mode turned on");
+        g_emCycle = 0;
+      }
+      break;
+    }
+  }
+
+  if (g_continuous_mode) {
     Camera.readFrame(pixels);
-//    digitalWriteFast(32, LOW);
-
-
     int numPixels = Camera.width() * Camera.height();
-    int camera_width = Camera.width();
 
-    for (int i=0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
-
+    for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
+    tft.waitUpdateAsyncComplete();  // wait while any other is pending...
     tft.fillScreen(ILI9341_BLACK);
     tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
-
-    for (int i = 0; i < numPixels; i++) {
-      unsigned short p = pixels[i];
-
-      if (p < 0x1000) {
-        Serial.print('0');
-      }
-
-      if (p < 0x0100) {
-        Serial.print('0');
-      }
-
-      if (p < 0x0010) {
-        Serial.print('0');
-      }
-
-      Serial.print(p, HEX);
-      if ((i % camera_width) == (camera_width - 1)) Serial.println();
-    }
-    Serial.println();
+    tft.updateScreenAsync(); // start an async update...
+    Serial.printf("Cycle time: %d\n", (uint32_t)g_emCycle);
+    g_emCycle = 0;
   }
 }
