@@ -80,7 +80,7 @@ void setup() {
   Serial.println("OV767X Camera Capture");
   Serial.println();
 
-  if (!Camera.begin(QVGA, RGB565, 5)) {
+  if (!Camera.begin(QVGA, RGB565, 30)) {
     Serial.println("Failed to initialize camera!");
     while (1);
   }

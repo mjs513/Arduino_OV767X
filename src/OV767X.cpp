@@ -117,8 +117,8 @@ int OV767X::begin(int resolution, int format, int fps)
   }
 
 // The only frame rates which work on the Nano 33 BLE are 1 and 5 FPS
-  if (fps != 1 && fps != 5)
-    return 0;
+//  if (fps != 1 && fps != 5)
+//    return 0;
 
   _ov7670 = ov7670_alloc();
   if (!_ov7670) {
@@ -130,7 +130,7 @@ int OV767X::begin(int resolution, int format, int fps)
   pinMode(_vsyncPin, INPUT);
   pinMode(_hrefPin, INPUT);
   pinMode(_pclkPin, INPUT);
-  pinMode(_xclkPin, OUTPUT);
+//  pinMode(_xclkPin, OUTPUT);
   Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
 
   for (int i = 0; i < 8; i++) {
@@ -240,7 +240,6 @@ void OV767X::readFrame(void* buffer)
 
   //port = nrf_gpio_pin_port_decode(&ulPin);
 
-  noInterrupts();
 
   uint8_t* b = (uint8_t*)buffer;
   int bytesPerRow = _width * _bytesPerPixel;
@@ -253,6 +252,7 @@ void OV767X::readFrame(void* buffer)
   // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
     while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
+    noInterrupts();
 
     for (int j = 0; j < bytesPerRow; j++) {
       // rising edges clock each data byte
@@ -277,10 +277,10 @@ void OV767X::readFrame(void* buffer)
     digitalToggleFast(33);
 
     while ((*_hrefPort & _hrefMask) != 0); // wait for LOW
+    interrupts();
   }
   digitalWriteFast(33, LOW);
 
-  interrupts();
 }
 
 void OV767X::testPattern(int pattern)
@@ -371,7 +371,7 @@ void OV767X::beginXClk()
 {
   // Generates 8 MHz signal using PWM... Will speed up.
   #if defined(__IMXRT1062__)  // Teensy 4.x
-    analogWriteFrequency(_xclkPin, 16000000.0);
+    analogWriteFrequency(_xclkPin, 16000000);
     analogWrite(_xclkPin, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer
 
   #else
