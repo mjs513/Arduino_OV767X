@@ -95,6 +95,7 @@ void setup() {
   Serial.println();
 
   Serial.println("Send the 'c' character to read a frame ...");
+  Serial.println("Send the 'd' character to read a frame using DMA ...");
   Serial.println("Send the 's' character to start/stop continuous display mode");
   Serial.println();
   pinMode(32, OUTPUT);
@@ -121,6 +122,44 @@ void loop() {
       int camera_width = Camera.width();
 
       for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
+
+      tft.fillScreen(ILI9341_BLACK);
+      tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
+
+      for (int i = 0; i < numPixels; i++) {
+        unsigned short p = pixels[i];
+
+        if (p < 0x1000) {
+          Serial.print('0');
+        }
+
+        if (p < 0x0100) {
+          Serial.print('0');
+        }
+
+        if (p < 0x0010) {
+          Serial.print('0');
+        }
+
+        Serial.print(p, HEX);
+        if ((i % camera_width) == (camera_width - 1)) Serial.println();
+      }
+      g_continuous_mode = false;
+      Serial.println();
+      break;
+    }
+    case 'd':
+    {
+      Serial.println("Reading DMA frame");
+      Serial.println();
+      memset((uint8_t*)pixels, 0, sizeof(pixels));
+      Camera.readFrameDMA(pixels);
+
+
+      int numPixels = Camera.width() * Camera.height();
+      int camera_width = Camera.width();
+
+//      for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
 
       tft.fillScreen(ILI9341_BLACK);
       tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);

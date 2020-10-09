@@ -396,4 +396,146 @@ void OV767X::endXClk()
   #endif
 }
 
+//================================================================================
+// experiment with DMA
+//================================================================================
+// Define our DMA structure. 
+DMAChannel OV767X::_dmachannel;
+DMASetting OV767X::_dmasettings[2];
+uint32_t OV767X::_dmaBuffer[DMABUFFER_SIZE];
+extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm.c
+
+void dumpDMA_TCD(DMABaseClass *dmabc)
+{
+  Serial.printf("%x %x:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+
+  Serial.printf("SA:%x SO:%d AT:%x NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n", (uint32_t)dmabc->TCD->SADDR,
+    dmabc->TCD->SOFF, dmabc->TCD->ATTR, dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR, 
+    dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA, dmabc->TCD->CSR, dmabc->TCD->BITER);
+}
+
+void xbar01_isr() {
+  // Curious to see if this will signal or not...
+  digitalToggleFast(33);
+  XBARA1_CTRL0 |=  XBARA_CTRL_STS0;
+
+}
+
+void OV767X::readFrameDMA(void* buffer)
+{
+  // Lets try to setup the DMA setup...
+  // first see if we can convert the _pclk to be an XBAR Input pin...
+  // OV7670_PLK   4
+  *(portConfigRegister(_pclkPin)) = 3; // set to XBAR mode (xbar 8)
+
+  // route the timer outputs through XBAR to edge trigger DMA request
+  CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
+  xbar_connect(XBARA1_IN_IOMUX_XBAR_INOUT08, XBARA1_OUT_DMA_CH_MUX_REQ30);
+
+  // Tell XBAR to dDMA on Rising 
+  attachInterruptVector(IRQ_XBAR1_01, &xbar01_isr);
+  XBARA1_CTRL0 = XBARA_CTRL_STS0 | XBARA_CTRL_EDGE0(1) | XBARA_CTRL_DEN0 | XBARA_CTRL_IEN0;
+
+  IOMUXC_GPR_GPR6 &= ~(IOMUXC_GPR_GPR6_IOMUXC_XBAR_DIR_SEL_8);  // Make sure it is input mode
+  IOMUXC_XBAR1_IN08_SELECT_INPUT = 0; // Make sure this signal goes to this pin...
+
+  // Need to switch the IO pins back to GPI1 from GPIO6
+  IOMUXC_GPR_GPR26 &= ~(0x0FCC0000u); 
+
+
+  // lets figure out how many bytes we will tranfer per setting...
+  int bytesPerRow = _width * _bytesPerPixel;
+  _rows_per_dma = DMABUFFER_SIZE / (bytesPerRow * 2);
+  uint16_t bytes_per_dma = _rows_per_dma * bytesPerRow; // 
+
+  // configure DMA channels
+  //  _dmasettings[0].begin();
+  _pixels_per_dma = bytes_per_dma / _bytesPerPixel;  // probably can hard code to 2...
+  _rows_left_dma = _height;
+  _frame_buffer_pointer = (uint16_t *)buffer;
+  _dma_done = false;
+  _dma_index = 0;
+
+  _dmasettings[0].source(GPIO1_DR); // setup source.
+  _dmasettings[0].destinationBuffer(_dmaBuffer, bytes_per_dma * 4);  // 32 bits per logical byte
+  _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+  _dmasettings[0].interruptAtCompletion();  // we will need an interrupt to process this.
+  _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+
+  _dmasettings[1].source(GPIO1_DR); // setup source.
+  _dmasettings[1].destinationBuffer(&_dmaBuffer[bytes_per_dma], bytes_per_dma * 4);  // 32 bits per logical byte
+  _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+  _dmasettings[1].interruptAtCompletion();  // we will need an interrupt to process this.
+  _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+
+  _dmachannel = _dmasettings[0];  // setup the first on...
+  _dmachannel.attachInterrupt(dmaInterrupt);
+  _dmachannel.triggerAtHardwareEvent(DMAMUX_SOURCE_XBAR1_0);
+
+
+  // Falling edge indicates start of frame
+  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
+  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
+  digitalWriteFast(32, HIGH);
+
+  // We have the start of a frame, so lets start the dma.
+  dumpDMA_TCD(&_dmachannel);
+  dumpDMA_TCD(&_dmasettings[0]);
+  dumpDMA_TCD(&_dmasettings[1]);
+  Serial.printf("pclk pin: %d config:%x control:%x\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
+  Serial.printf("IOMUXC_GPR_GPR26:%x\n", IOMUXC_GPR_GPR26);
+  Serial.printf("XBAR CTRL0:%x CTRL1:%x\n", XBARA1_CTRL0, XBARA1_CTRL1);
+
+
+  _dmachannel.begin(true);
+  _dmachannel.enable();
+ 
+  // clear any previous status. 
+  XBARA1_CTRL0 |=  XBARA_CTRL_STS0;
+
+  // hopefully it start here (fingers crossed)
+  // for now will hang here to see if completes...
+  elapsedMillis em = 0;
+  while ((em < 1000) && !_dma_done) ; // wait up to a second...
+  if (!_dma_done) Serial.println("Dma did not complete");
+  digitalWriteFast(32, LOW);
+
+  dumpDMA_TCD(&_dmachannel);
+  dumpDMA_TCD(&_dmasettings[0]);
+  dumpDMA_TCD(&_dmasettings[1]);
+
+}
+
+void OV767X::dmaInterrupt() {
+  Camera.processDMAInterrupt();  // lets get back to the main object...
+}
+
+void OV767X::processDMAInterrupt() {
+  _dmachannel.clearInterrupt(); // tell system we processed it.
+    digitalToggleFast(33);
+
+  // lets guess which buffer completed.
+  _dma_index++;
+  uint32_t *buffer = (_dma_index & 1) ? _dmaBuffer : (uint32_t*)_dmasettings[1].TCD->DADDR;
+  uint16_t pixels_per_dma = _pixels_per_dma;      
+  // process the pixels...
+  while (pixels_per_dma--) {
+    uint8_t lsb = *buffer++ >> 18;  
+    lsb = (lsb & 0x3) | ((lsb & 0x3f0)>>2);
+    uint8_t msb = *buffer++ >> 18;  
+    msb = (msb & 0x3) | ((msb & 0x3f0)>>2);
+    *_frame_buffer_pointer = (uint16_t)(msb << 8) | lsb;
+  }      
+
+  // see if we are done or ... 
+  if (!_rows_left_dma) {
+      _dma_done = true;
+  } else {
+    _rows_left_dma -= _rows_per_dma;
+    if (_rows_left_dma <= (2*_rows_per_dma)) _dmasettings[1].disableOnCompletion(); 
+  }
+
+}
+
+
 OV767X Camera;

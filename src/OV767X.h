@@ -9,6 +9,7 @@
 
 #include <Arduino.h>
 #if defined(__IMXRT1062__)  // Teensy 4.x
+#include <DMAChannel.h>
 #define OV7670_VSYNC 2
 #define OV7670_HREF  3
 #define OV7670_PLK   4
@@ -69,6 +70,7 @@ public:
   int bytesPerPixel() const;
 
   void readFrame(void* buffer);
+  void readFrameDMA(void* buffer);
 
   void testPattern(int pattern = 2);
   void noTestPattern();
@@ -116,6 +118,23 @@ private:
 
   int _saturation;
   int _hue;
+
+  // Lets try adding some DMA support.
+  #if defined(__IMXRT1062__)  // Teensy 4.x
+      enum {DMABUFFER_SIZE=2560};  // 640x480  so 640*2*2
+      static DMAChannel _dmachannel;
+      static DMASetting _dmasettings[2];
+      static uint32_t _dmaBuffer[DMABUFFER_SIZE];
+      uint16_t _rows_per_dma;
+      uint16_t _pixels_per_dma;
+      uint32_t _rows_left_dma;
+      uint16_t *_frame_buffer_pointer;
+      uint16_t _dma_index;
+      volatile bool _dma_done;
+  static void dmaInterrupt(); 
+  void processDMAInterrupt();
+
+  #endif
 };
 
 extern OV767X Camera;
