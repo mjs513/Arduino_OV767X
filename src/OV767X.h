@@ -121,10 +121,11 @@ private:
 
   // Lets try adding some DMA support.
   #if defined(__IMXRT1062__)  // Teensy 4.x
-      enum {DMABUFFER_SIZE=2560};  // 640x480  so 640*2*2
+      enum {DMABUFFER_SIZE=1280};  // 640x480  so 640*2*2
       static DMAChannel _dmachannel;
       static DMASetting _dmasettings[2];
-      static uint32_t _dmaBuffer[DMABUFFER_SIZE];
+      static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
+      static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
       uint16_t _rows_per_dma;
       uint16_t _pixels_per_dma;
       uint32_t _rows_left_dma;

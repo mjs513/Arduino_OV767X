@@ -98,6 +98,8 @@ void setup() {
   Serial.println("Send the 'd' character to read a frame using DMA ...");
   Serial.println("Send the 's' character to start/stop continuous display mode");
   Serial.println();
+  pinMode(31, OUTPUT);
+  digitalWrite(31, LOW);
   pinMode(32, OUTPUT);
   digitalWrite(32, LOW);
   pinMode(33, OUTPUT);
