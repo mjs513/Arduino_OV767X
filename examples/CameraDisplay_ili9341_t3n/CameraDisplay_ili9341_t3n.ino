@@ -33,7 +33,7 @@
 
       Teensy T4.x using ILI9341_t3n library.
         OV7670_VSYNC 2
-        OV7670_HREF  3
+        OV7670_HREF  3  *** trying 40 on T4.1 as on GPIO1...
         OV7670_PLK   4
         OV7670_XCLK  5
         OV7670_D0    14 // AD_B1_02 1.18
@@ -158,7 +158,6 @@ void loop() {
       Camera.readFrameDMA(pixels);
 
 
-      int numPixels = Camera.width() * Camera.height();
       int camera_width = Camera.width();
 
 //      for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
@@ -166,23 +165,12 @@ void loop() {
       tft.fillScreen(ILI9341_BLACK);
       tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
 
-      for (int i = 0; i < numPixels; i++) {
-        unsigned short p = pixels[i];
-
-        if (p < 0x1000) {
-          Serial.print('0');
+      uint16_t *p = pixels;
+      for (int row = 0; row < Camera.height(); row++) {
+        for (int col = 0; col < camera_width; col++) {
+          Serial.printf("%04x", *p++);
         }
-
-        if (p < 0x0100) {
-          Serial.print('0');
-        }
-
-        if (p < 0x0010) {
-          Serial.print('0');
-        }
-
-        Serial.print(p, HEX);
-        if ((i % camera_width) == (camera_width - 1)) Serial.println();
+        Serial.println();
       }
       g_continuous_mode = false;
       Serial.println();

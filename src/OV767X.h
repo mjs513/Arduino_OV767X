@@ -11,17 +11,21 @@
 #if defined(__IMXRT1062__)  // Teensy 4.x
 #include <DMAChannel.h>
 #define OV7670_VSYNC 2
-#define OV7670_HREF  3
+//#define OV7670_HREF  3
 #define OV7670_PLK   4
 #define OV7670_XCLK  5
+// Changed to GPIO/D order
 #define OV7670_D0    14 // AD_B1_02 1.18
 #define OV7670_D1    15 // AD_B1_03 1.19
-#define OV7670_D3    16 // AD_B1_07 1.23
 #define OV7670_D2    17 // AD_B1_06 1.22
-#define OV7670_D6    20 // AD_B1_10
-#define OV7670_D7    21 // AD_B1_11
-#define OV7670_D4    22 // AD_B1_08
-#define OV7670_D5    23 // AD_B1_09
+#define OV7670_D3    16 // AD_B1_07 1.23
+#define OV7670_D4    22 // AD_B1_08 1.24
+#define OV7670_D5    23 // AD_B1_09 1.25
+#define OV7670_D6    20 // AD_B1_10 1.26
+#define OV7670_D7    21 // AD_B1_11 1.27
+
+#define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
+
 #else
 #define OV7670_VSYNC 8
 #define OV7670_HREF  A1
@@ -126,10 +130,12 @@ private:
       static DMASetting _dmasettings[2];
       static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
       static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
-      uint16_t _rows_per_dma;
-      uint16_t _pixels_per_dma;
-      uint32_t _rows_left_dma;
+      uint32_t _bytes_left_dma;
+      uint16_t  _save_lsb;
+      uint16_t  _frame_col_index;  // which column we are in a row
+      uint16_t  _frame_row_index;  // which row
       uint16_t *_frame_buffer_pointer;
+      uint16_t *_frame_row_buffer_pointer; // start of the row
       uint16_t _dma_index;
       volatile bool _dma_done;
   static void dmaInterrupt(); 
