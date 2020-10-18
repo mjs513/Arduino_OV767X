@@ -10,7 +10,7 @@
 #include <Arduino.h>
 #if defined(__IMXRT1062__)  // Teensy 4.x
 #include <DMAChannel.h>
-#define OV7670_VSYNC 2
+//#define OV7670_VSYNC 2
 //#define OV7670_HREF  3
 #define OV7670_PLK   4
 #define OV7670_XCLK  5
@@ -25,7 +25,7 @@
 #define OV7670_D7    21 // AD_B1_11 1.27
 
 #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
-
+#define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
 #else
 #define OV7670_VSYNC 8
 #define OV7670_HREF  A1
@@ -74,7 +74,17 @@ public:
   int bytesPerPixel() const;
 
   void readFrame(void* buffer);
+
+  // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
+  // So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
+  // buffers, with the option of setting your own buffers if desired.
+  bool startReadFrameDMA(void(*callback)(void *frame_buffer)=nullptr);
+  bool stopReadFrameDMA();
+  inline uint32_t frameCount() {return _dma_frame_count;}
+  inline void *frameBuffer() {return _dma_last_completed_frame;}
+  // TBD Allow user to set all of the buffers...
   void readFrameDMA(void* buffer);
+
 
   void testPattern(int pattern = 2);
   void noTestPattern();
@@ -130,14 +140,27 @@ private:
       static DMASetting _dmasettings[2];
       static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
       static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
+
+      void (*_callback)(void *frame_buffer) =nullptr ;
+      uint32_t  _dma_frame_count;
+      uint16_t *_dma_last_completed_frame;
+  // TBD Allow user to set all of the buffers...
+
+      uint32_t _save_IOMUXC_GPR_GPR26;
+      uint32_t _save_pclkPin_portConfigRegister;
+
       uint32_t _bytes_left_dma;
       uint16_t  _save_lsb;
       uint16_t  _frame_col_index;  // which column we are in a row
       uint16_t  _frame_row_index;  // which row
+
+      uint16_t *_frame_buffer_1 = nullptr;
+      uint16_t *_frame_buffer_2 = nullptr;
       uint16_t *_frame_buffer_pointer;
       uint16_t *_frame_row_buffer_pointer; // start of the row
       uint16_t _dma_index;
-      volatile bool _dma_done;
+      enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED};
+      volatile uint8_t _dma_state;
   static void dmaInterrupt(); 
   void processDMAInterrupt();
 

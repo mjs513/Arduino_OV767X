@@ -12,39 +12,41 @@
     Little Endian
 
   Circuit:
-    - Arduino Nano 33 BLE board
-    - OV7670 camera module:
-      - 3.3 connected to 3.3
-      - GND connected GND
-      - SIOC connected to A5
-      - SIOD connected to A4
-      - VSYNC connected to 8
-      - HREF connected to A1
-      - PCLK connected to A0
-      - XCLK connected to 9
-      - D7 connected to 4
-      - D6 connected to 6
-      - D5 connected to 5
-      - D4 connected to 3
-      - D3 connected to 2
-      - D2 connected to 0 / RX
-      - D1 connected to 1 / TX
-      - D0 connected to 10
 
       Teensy T4.x using ILI9341_t3n library.
-        OV7670_VSYNC 2
-        OV7670_HREF  3  *** trying 40 on T4.1 as on GPIO1...
-        OV7670_PLK   4
-        OV7670_XCLK  5
-        OV7670_D0    14 // AD_B1_02 1.18
-        OV7670_D1    15 // AD_B1_03 1.19
-        OV7670_D3    16 // AD_B1_07 1.23
-        OV7670_D2    17 // AD_B1_06 1.22
-        OV7670_D6    20 // AD_B1_10
-        OV7670_D7    21 // AD_B1_11
-        OV7670_D4    22 // AD_B1_08
-        OV7670_D5    23 // AD_B1_09
+      // T4
+      #define OV7670_PLK   4
+      #define OV7670_XCLK  5
+      // Changed to GPIO/D order
+      #define OV7670_D0    14 // AD_B1_02 1.18
+      #define OV7670_D1    15 // AD_B1_03 1.19
+      #define OV7670_D2    17 // AD_B1_06 1.22
+      #define OV7670_D3    16 // AD_B1_07 1.23
+      #define OV7670_D4    22 // AD_B1_08 1.24
+      #define OV7670_D5    23 // AD_B1_09 1.25
+      #define OV7670_D6    20 // AD_B1_10 1.26
+      #define OV7670_D7    21 // AD_B1_11 1.27
 
+      // Note These HREF should be on GPIO 1.x so probably 0 or 1 or bottom pins (24, 25, 26, 27)
+      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
+      #define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
+
+      // For T4.1 can choose same or could choose a contiguous set of pins only one shift required.
+      // Like:  Note was going to try GPI pins 1.24-21 but save SPI1 pins 26,27 as no ...
+      #define OV7670_PLK   4
+      #define OV7670_XCLK  5
+      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
+      #define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
+      #define OV7670_D0    17 // AD_B1_06 1.22
+      #define OV7670_D1    16 // AD_B1_07 1.23
+      #define OV7670_D2    22 // AD_B1_08 1.24
+      #define OV7670_D3    23 // AD_B1_09 1.25
+      #define OV7670_D4    20 // AD_B1_10 1.26
+      #define OV7670_D5    21 // AD_B1_11 1.27
+      #define OV7670_D6    38 // AD_B1_12 1.28
+      #define OV7670_D7    39 // AD_B1_13 1.29
+//      #define OV7670_D6    26 // AD_B1_14 1.30
+//      #define OV7670_D7    27 // AD_B1_15 1.31
 
 
   This example code is in the public domain.
@@ -60,6 +62,7 @@
 uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 bool g_continuous_mode = false;
+bool g_dma_mode = false;
 elapsedMillis g_emCycle;
 
 void setup() {
@@ -107,6 +110,14 @@ void setup() {
 
 }
 
+uint16_t *last_dma_frame_buffer = nullptr;
+
+void camera_dma_callback(void *pfb) {
+    //Serial.printf("Callback: %x\n", (uint32_t)pfb);
+    //tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), (uint16_t*)pfb);
+    last_dma_frame_buffer = (uint16_t*)pfb;
+}
+
 void loop() {
   if (Serial.available()) {
     int ch = Serial.read();
@@ -152,6 +163,7 @@ void loop() {
     }
     case 'd':
     {
+#if 0      
       Serial.println("Reading DMA frame");
       Serial.println();
       memset((uint8_t*)pixels, 0, sizeof(pixels));
@@ -159,8 +171,6 @@ void loop() {
 
 
       int camera_width = Camera.width();
-
-//      for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
 
       tft.fillScreen(ILI9341_BLACK);
       tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
@@ -175,7 +185,26 @@ void loop() {
       g_continuous_mode = false;
       Serial.println();
       break;
+#else
+      if (g_dma_mode) {
+        Serial.println("*** stopReadFrameDMA ***");
+        Camera.stopReadFrameDMA();
+        Serial.println("*** return from stopReadFrameDMA ***");
+        tft.endUpdateAsync();
+        tft.useFrameBuffer(false);
+        g_dma_mode = false;
+      } else {
+        Camera.startReadFrameDMA(&camera_dma_callback);
+        Serial.println("*** Return from startReadFrameDMA ***");
+        tft.useFrameBuffer(true);
+        tft.updateScreenAsync(true);
+        Serial.println("*** Return from updateScreenAsync ***");
+        g_dma_mode = true;
+      }
+      break;
+#endif      
     }
+
     case 's':
       if (g_continuous_mode) {
         g_continuous_mode = false;
@@ -203,4 +232,11 @@ void loop() {
     Serial.printf("Cycle time: %d\n", (uint32_t)g_emCycle);
     g_emCycle = 0;
   }
+  if (g_dma_mode) {
+    if (last_dma_frame_buffer) {
+      tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), last_dma_frame_buffer);
+      last_dma_frame_buffer = nullptr;
+    }
+  }
+
 }

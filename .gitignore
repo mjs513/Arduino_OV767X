@@ -1,3 +1,4 @@
 
 *.sublime-workspace
 examples/CameraDisplay_ili9341_t3n/CameraDisplay_ili9341_t3n.sublime-workspace
+*.sublime-project

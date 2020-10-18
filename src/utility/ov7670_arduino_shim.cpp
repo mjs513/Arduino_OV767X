@@ -53,7 +53,7 @@ extern "C" {
 
   int arduino_i2c_write(unsigned short address, unsigned char reg, unsigned char value)
   {
-#ifdef OV760_DEBUG
+#ifdef OV760_DEBUG_I2C
     Serial.print("arduino_i2c_write: address = 0x");
     Serial.print(address, HEX);
     Serial.print(", reg = 0x");
