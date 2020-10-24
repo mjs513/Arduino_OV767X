@@ -118,10 +118,6 @@ int OV767X::begin(int resolution, int format, int fps)
     return 0;
   }
 
-// The only frame rates which work on the Nano 33 BLE are 1 and 5 FPS
-//  if (fps != 1 && fps != 5)
-//    return 0;
-
   _ov7670 = ov7670_alloc();
   if (!_ov7670) {
     end();
@@ -157,6 +153,7 @@ int OV767X::begin(int resolution, int format, int fps)
 
   if (ov7670_detect(_ov7670)) {
     end();
+    Serial.println("Camera detect failed");
 
     return 0;
   }
@@ -166,6 +163,7 @@ int OV767X::begin(int resolution, int format, int fps)
 
   if (ov7670_s_power(_ov7670, 1)) {
     end();
+    Serial.println("Camera ov7670_s_power failed");
 
     return 0;
   }
@@ -415,9 +413,10 @@ extern "C" void xbar_connect(unsigned int input, unsigned int output); // in pwm
 
 void dumpDMA_TCD(DMABaseClass *dmabc)
 {
-  Serial.printf("%x %x:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+  Serial.printf("%lx %lx:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
-  Serial.printf("SA:%x SO:%d AT:%x NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n", (uint32_t)dmabc->TCD->SADDR,
+  Serial.printf("SA:%lx SO:%d AT:%x NB:%lx SL:%ld DA:%lx DO:%d CI:%x DL:%ld CS:%x BI:%x\n", 
+                (uint32_t)dmabc->TCD->SADDR,
                 dmabc->TCD->SOFF, dmabc->TCD->ATTR, dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR,
                 dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA, dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
@@ -552,11 +551,6 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   // lets figure out how many bytes we will tranfer per setting...
   //  _dmasettings[0].begin();
   _frame_row_buffer_pointer = _frame_buffer_pointer = (uint16_t *)_frame_buffer_1;
-  _bytes_left_dma = _width * _height * 2; // for now assuming color 565 image...
-  _dma_index = 0;
-  _frame_col_index = 0;  // which column we are in a row
-  _frame_row_index = 0;  // which row
-  _save_lsb = 0xffff;
 
   // configure DMA channels
   _dmachannel.begin();
@@ -611,31 +605,30 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   digitalToggleFast(31);
 
   // Falling edge indicates start of frame
-  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  digitalWriteFast(32, HIGH);
+//  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
+//  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
+//  digitalWriteFast(32, HIGH);
 
 // Debug stuff for now
-//  IOMUXC_GPR_GPR26 &= ~_vsyncMask; //
 
   // We have the start of a frame, so lets start the dma.
 #ifdef DEBUG_CAMERA
   dumpDMA_TCD(&_dmachannel);
   dumpDMA_TCD(&_dmasettings[0]);
   dumpDMA_TCD(&_dmasettings[1]);
-  Serial.printf("pclk pin: %d config:%x control:%x\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
-  Serial.printf("IOMUXC_GPR_GPR26-29:%x %x %x %x\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
-  Serial.printf("GPIO1: %x %x, GPIO6: %x %x\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
+  Serial.printf("pclk pin: %d config:%lx control:%lx\n", _pclkPin, *(portConfigRegister(_pclkPin)), *(portControlRegister(_pclkPin)));
+  Serial.printf("IOMUXC_GPR_GPR26-29:%lx %lx %lx %lx\n", IOMUXC_GPR_GPR26, IOMUXC_GPR_GPR27, IOMUXC_GPR_GPR28, IOMUXC_GPR_GPR29);
+  Serial.printf("GPIO1: %lx %lx, GPIO6: %lx %lx\n", GPIO1_DR, GPIO1_PSR, GPIO6_DR, GPIO6_PSR);
   Serial.printf("XBAR CTRL0:%x CTRL1:%x\n\n", XBARA1_CTRL0, XBARA1_CTRL1);
 #endif
   _dma_state = DMASTATE_RUNNING;
   _dma_last_completed_frame = nullptr;
   _dma_frame_count = 0;
 
-  _dmachannel.enable();
+  // Now start an interrupt for start of frame. 
+  attachInterrupt(_vsyncPin, &frameStartInterrupt, FALLING);
 
-  // hopefully everything is running now
-  digitalWriteFast(32, LOW);
+  digitalToggleFast(31);
   return true;
 }
 
@@ -670,6 +663,30 @@ bool OV767X::stopReadFrameDMA()
   return (em < 1000); // did we stop...
 }
 
+//===================================================================
+// Our Frame Start interrupt.
+//===================================================================
+void  OV767X::frameStartInterrupt() {
+  Camera.processFrameStartInterrupt();  // lets get back to the main object...
+}
+
+void  OV767X::processFrameStartInterrupt() {
+  digitalWriteFast(32, HIGH);
+  _bytes_left_dma = _width * _height * 2; // for now assuming color 565 image...
+  _dma_index = 0;
+  _frame_col_index = 0;  // which column we are in a row
+  _frame_row_index = 0;  // which row
+  _save_lsb = 0xffff;
+  // make sure our DMA is setup properly again. 
+  _dmasettings[0].transferCount(DMABUFFER_SIZE);
+  _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+  _dmasettings[1].transferCount(DMABUFFER_SIZE);
+  _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+  _dmachannel = _dmasettings[0];  // setup the first on...
+  _dmachannel.enable();
+  
+  detachInterrupt(_vsyncPin);
+}
 
 //===================================================================
 // Our DMA interrupt.
@@ -705,31 +722,26 @@ void OV767X::processDMAInterrupt() {
   // lets try dumping a little data on 1st 2nd and last buffer.
 #ifdef DEBUG_CAMERA
   if ((_dma_index < 3) || (buffer_size  < DMABUFFER_SIZE)) {
-    Serial.printf("D(%d, %d, %d): ", _dma_index, buffer_size, _bytes_left_dma);
+    Serial.printf("D(%d, %d, %lu): ", _dma_index, buffer_size, _bytes_left_dma);
     for (uint16_t i = 0; i < 10; i++) {
       uint16_t b = buffer[i] >> 18;
       b = (b & 0x3) | ((b & 0x3f0) >> 2);
-      Serial.printf(" %x(%02x)", buffer[i], b);
+      Serial.printf(" %lx(%02x)", buffer[i], b);
     }
     Serial.print("...");
     for (uint16_t i = buffer_size - 6; i < buffer_size; i++) {
       uint16_t b = buffer[i] >> 18;
       b = (b & 0x3) | ((b & 0x3f0) >> 2);
-      Serial.printf(" %x(%02x)", buffer[i], b);
+      Serial.printf(" %lx(%02x)", buffer[i], b);
     }
     Serial.println();
   }
 #endif
 
   for (uint16_t buffer_index = 0; buffer_index < buffer_size; buffer_index++) {
-    //if (!_bytes_left_dma || (_frame_row_index >= _height)) break;
+    if (!_bytes_left_dma || (_frame_row_index >= _height)) break;
 
-#ifdef DEBUG_CAMERA_VSYNC
-    // see of we get any vsync high values?
-    if (*buffer & _vsyncMask) {
-      Serial.printf("##VSYNC: %d (%d %d) %x\n", _dma_index, _frame_row_index, _frame_col_index, *buffer);
-    }
-#endif
+
     if (*buffer & _hrefMask) {
       // only process if href high...
       uint16_t b = *buffer >> 18;
@@ -750,7 +762,7 @@ void OV767X::processDMAInterrupt() {
 
     } else {
 #ifdef DEBUG_CAMERA
-      Serial.printf("*NHREF (%d %d) %x", _frame_row_index, _frame_col_index, *buffer);
+      //Serial.printf("*NHREF (%d %d) %x", _frame_row_index, _frame_col_index, *buffer);
 #endif
       if (_frame_col_index) {
         // We are at end or beginning of next row?  so make sure we are there...
@@ -772,48 +784,51 @@ void OV767X::processDMAInterrupt() {
     buffer++;
 
     // lets see if we finished a frame
-    if (_frame_row_index == _height) {
-      Serial.println("EOF");
-      _frame_row_index = 0;
-      _dma_frame_count++;
-      if (_dma_last_completed_frame != _frame_buffer_1) {
-        _dma_last_completed_frame = _frame_buffer_1;
-        _frame_row_buffer_pointer = _frame_buffer_2;
-      } else {
-        _dma_last_completed_frame = _frame_buffer_2;
-        _frame_row_buffer_pointer = _frame_buffer_1;
-      }
-      _frame_buffer_pointer = _frame_row_buffer_pointer;
-      _dma_frame_count = 0;
-      digitalToggleFast(31);
-      if (_callback) (*_callback)(_dma_last_completed_frame);
-      digitalToggleFast(31);
-    }
+    if (_frame_row_index == _height) break; // We finished a frame lets bail
   }
-#if 1
-#else
-  href_fudge_factor += _bytes_left_dma; // combine value to make easier to check...
-  if (!_bytes_left_dma || (_frame_row_index >= _height)) {
-    _dma_done = true;
-  }
-  else if (href_fudge_factor <= (2 * DMABUFFER_SIZE)) {
-    if (_dma_index & 1) {
-      _dmasettings[0].disableOnCompletion();
-      if (href_fudge_factor < DMABUFFER_SIZE)  _dmasettings[0].transferCount(href_fudge_factor);
-      else   _dmasettings[0].transferCount(href_fudge_factor - DMABUFFER_SIZE);
-    } else {
-      _dmasettings[1].disableOnCompletion();
-      if (href_fudge_factor < DMABUFFER_SIZE)  _dmasettings[1].transferCount(href_fudge_factor);
-      else   _dmasettings[0].transferCount(href_fudge_factor - DMABUFFER_SIZE);
-    }
-  }
-#endif
-  if (_dma_state == DMASTATE_STOP_REQUESTED) {
-#ifdef DEBUG_CAMERA
-    Serial.println("OV767X::dmaInterrupt - Stop requested");
-#endif
+
+  if (_frame_row_index == _height) { // We finished a frame lets bail
     _dmachannel.disable();  // disable the DMA now...
-    _dma_state = DMA_STATE_STOPPED;
+    digitalWriteFast(32, LOW);
+    Serial.println("EOF");
+    _frame_row_index = 0;
+    _dma_frame_count++;
+    if (_dma_last_completed_frame != _frame_buffer_1) {
+      _dma_last_completed_frame = _frame_buffer_1;
+      _frame_row_buffer_pointer = _frame_buffer_2;
+    } else {
+      _dma_last_completed_frame = _frame_buffer_2;
+      _frame_row_buffer_pointer = _frame_buffer_1;
+    }
+    _frame_buffer_pointer = _frame_row_buffer_pointer;
+
+    digitalToggleFast(31);
+    if (_callback) (*_callback)(_dma_last_completed_frame);
+    digitalToggleFast(31);
+
+
+    if (_dma_state == DMASTATE_STOP_REQUESTED) {
+#ifdef DEBUG_CAMERA
+      Serial.println("OV767X::dmaInterrupt - Stop requested");
+#endif
+      _dma_state = DMA_STATE_STOPPED;
+    } else {
+      // We need to start up our ISR for the next frame. 
+      attachInterrupt(_vsyncPin, &frameStartInterrupt, FALLING);
+    }
+  } else {
+    href_fudge_factor += _bytes_left_dma; // combine value to make easier to check...
+    if (href_fudge_factor <= (2 * DMABUFFER_SIZE)) {
+      if (_dma_index & 1) {
+        _dmasettings[0].disableOnCompletion();
+        if (href_fudge_factor < DMABUFFER_SIZE)  _dmasettings[0].transferCount(href_fudge_factor);
+        else   _dmasettings[0].transferCount(href_fudge_factor - DMABUFFER_SIZE);
+      } else {
+        _dmasettings[1].disableOnCompletion();
+        if (href_fudge_factor < DMABUFFER_SIZE)  _dmasettings[1].transferCount(href_fudge_factor);
+        else   _dmasettings[0].transferCount(href_fudge_factor - DMABUFFER_SIZE);
+      }
+    }
   }
   digitalWriteFast(33, LOW);
 }

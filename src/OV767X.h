@@ -10,35 +10,22 @@
 #include <Arduino.h>
 #if defined(__IMXRT1062__)  // Teensy 4.x
 #include <DMAChannel.h>
-//#define OV7670_VSYNC 2
-//#define OV7670_HREF  3
-#define OV7670_PLK   4
-#define OV7670_XCLK  5
-// Changed to GPIO/D order
-#define OV7670_D0    14 // AD_B1_02 1.18
-#define OV7670_D1    15 // AD_B1_03 1.19
-#define OV7670_D2    17 // AD_B1_06 1.22
-#define OV7670_D3    16 // AD_B1_07 1.23
-#define OV7670_D4    22 // AD_B1_08 1.24
-#define OV7670_D5    23 // AD_B1_09 1.25
-#define OV7670_D6    20 // AD_B1_10 1.26
-#define OV7670_D7    21 // AD_B1_11 1.27
+//#define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
+#define OV7670_PLK   4 //40 // AD_B1_04 CSI_PIXCLK
+#define OV7670_XCLK  5  //41 // AD_B1_05 CSI_MCLK
+#define OV7670_HREF  40 // AD_B1_07 CSI_HSYNC
+#define OV7670_VSYNC 41 // AD_B1_06 CSI_VSYNC
 
-#define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
-#define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
-#else
-#define OV7670_VSYNC 8
-#define OV7670_HREF  A1
-#define OV7670_PLK   A0
-#define OV7670_XCLK  9
-#define OV7670_D0    10
-#define OV7670_D1    1
-#define OV7670_D2    0
-#define OV7670_D3    2
-#define OV7670_D4    3
-#define OV7670_D5    5
-#define OV7670_D6    6
-#define OV7670_D7    4
+#define OV7670_D0    27 // AD_B1_15 CSI_D2
+#define OV7670_D1    26 // AD_B1_14 CSI_D3
+#define OV7670_D2    39 // AD_B1_13 CSI_D4
+#define OV7670_D3    38 // AD_B1_12 CSI_D5
+#define OV7670_D4    21 // AD_B1_11 CSI_D6
+#define OV7670_D5    20 // AD_B1_10 CSI_D7
+#define OV7670_D6    23 // AD_B1_09 CSI_D8
+#define OV7670_D7    22 // AD_B1_08 CSI_D9
+
+
 #endif
 enum
 {
@@ -163,6 +150,8 @@ private:
       volatile uint8_t _dma_state;
   static void dmaInterrupt(); 
   void processDMAInterrupt();
+  static void frameStartInterrupt();
+  void processFrameStartInterrupt();
 
   #endif
 };

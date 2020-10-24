@@ -28,14 +28,14 @@
       #define OV7670_D7    21 // AD_B1_11 1.27
 
       // Note These HREF should be on GPIO 1.x so probably 0 or 1 or bottom pins (24, 25, 26, 27)
-      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
+      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1...
       #define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
 
       // For T4.1 can choose same or could choose a contiguous set of pins only one shift required.
       // Like:  Note was going to try GPI pins 1.24-21 but save SPI1 pins 26,27 as no ...
       #define OV7670_PLK   4
       #define OV7670_XCLK  5
-      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1... 
+      #define OV7670_HREF  40 // AD_B1_04 1.20 T4.1...
       #define OV7670_VSYNC 41 // AD_B1_05 1.21 T4.1...
       #define OV7670_D0    17 // AD_B1_06 1.22
       #define OV7670_D1    16 // AD_B1_07 1.23
@@ -58,12 +58,13 @@
 #define TFT_CS   0  // AD_B0_02
 #define TFT_DC   1  // AD_B0_03
 #define TFT_RST 255
-
+uint16_t ext_pixel[320*240] EXTMEM;
 uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 bool g_continuous_mode = false;
 bool g_dma_mode = false;
-elapsedMillis g_emCycle;
+elapsedMillis g_emCycles;
+uint32_t      g_count_frames_output = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -82,7 +83,7 @@ void setup() {
 
   Serial.println("OV767X Camera Capture");
   Serial.println();
-
+      Serial.println((uint32_t)ext_pixel, HEX);
   if (!Camera.begin(QVGA, RGB565, 30)) {
     Serial.println("Failed to initialize camera!");
     while (1);
@@ -113,9 +114,11 @@ void setup() {
 uint16_t *last_dma_frame_buffer = nullptr;
 
 void camera_dma_callback(void *pfb) {
-    //Serial.printf("Callback: %x\n", (uint32_t)pfb);
-    //tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), (uint16_t*)pfb);
-    last_dma_frame_buffer = (uint16_t*)pfb;
+  //Serial.printf("Callback: %x\n", (uint32_t)pfb);
+  tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), (uint16_t*)pfb);
+  tft.updateScreenAsync();
+
+  last_dma_frame_buffer = (uint16_t*)pfb;
 }
 
 void loop() {
@@ -126,7 +129,6 @@ void loop() {
     case 'c':
     {
       Serial.println("Reading frame");
-      Serial.println();
       memset((uint8_t*)pixels, 0, sizeof(pixels));
       Camera.readFrame(pixels);
 
@@ -163,7 +165,7 @@ void loop() {
     }
     case 'd':
     {
-#if 0      
+#if 0
       Serial.println("Reading DMA frame");
       Serial.println();
       memset((uint8_t*)pixels, 0, sizeof(pixels));
@@ -197,12 +199,12 @@ void loop() {
         Camera.startReadFrameDMA(&camera_dma_callback);
         Serial.println("*** Return from startReadFrameDMA ***");
         tft.useFrameBuffer(true);
-        tft.updateScreenAsync(true);
-        Serial.println("*** Return from updateScreenAsync ***");
+//        tft.updateScreenAsync(true);
+//        Serial.println("*** Return from updateScreenAsync ***");
         g_dma_mode = true;
       }
       break;
-#endif      
+#endif
     }
 
     case 's':
@@ -214,7 +216,8 @@ void loop() {
         g_continuous_mode = true;
         tft.useFrameBuffer(true);
         Serial.println("*** Continuous mode turned on");
-        g_emCycle = 0;
+        g_emCycles = 0;
+        g_count_frames_output=0;
       }
       break;
     }
@@ -229,12 +232,18 @@ void loop() {
     tft.fillScreen(ILI9341_BLACK);
     tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), pixels);
     tft.updateScreenAsync(); // start an async update...
-    Serial.printf("Cycle time: %d\n", (uint32_t)g_emCycle);
-    g_emCycle = 0;
+    g_count_frames_output++;
+    if (g_emCycles >= 1000) {
+      Serial.print("Cycles Per second: ");
+      Serial.println((float)(g_count_frames_output * 1000.0) / (float)g_emCycles, 2);
+//    Serial.printf("Cycle time: %lu\n", (uint32_t)g_emCycles);
+      g_emCycles = 0;
+      g_count_frames_output = 0;
+    }
   }
   if (g_dma_mode) {
     if (last_dma_frame_buffer) {
-      tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), last_dma_frame_buffer);
+//      tft.writeRect(ILI9341_t3n::CENTER, ILI9341_t3n::CENTER, Camera.width(), Camera.height(), last_dma_frame_buffer);
       last_dma_frame_buffer = nullptr;
     }
   }
