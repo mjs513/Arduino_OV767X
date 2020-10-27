@@ -100,11 +100,6 @@ void setup() {
 
 #ifdef ARDUINO_TEENSY41
   Serial.printf("EXT Memory size: %u\n", external_psram_size);
-  Serial.println("Hit enter to continue");
-  Serial.flush();
-  while (!Serial.available()) ;
-  while (Serial.read() != -1) ;
-
   extern unsigned long _extram_start;
   extern unsigned long _extram_end;
   Serial.printf("EXT Memory size: %u EXTMEM variables: %lx End: %lx\n", external_psram_size,
@@ -114,8 +109,10 @@ void setup() {
 
 #ifdef USE_ILI9488
   tft.begin(16000000);
-  RAFB *frame_buffer = (RAFB*)extmem_malloc(sizeof(RAFB) * tft.width() * tft.height());
+  RAFB *frame_buffer = (RAFB*)extmem_malloc(sizeof(RAFB) * tft.width() * tft.height() + 32);
   Serial.printf("frame_buffer: %lx", (uint32_t)frame_buffer);
+  frame_buffer =  (((uintptr_t)frame_buffer + 32) & ~ ((uintptr_t) (31)));
+  Serial.printf("frame_buffer aligned: %lx", (uint32_t)frame_buffer);
 
   tft.setFrameBuffer(frame_buffer);
 #else
@@ -137,7 +134,7 @@ void setup() {
 
   Serial.println("OV767X Camera Capture"); Serial.flush();
   Serial.println();
-  if (!Camera.begin(VGA, RGB565, 20)) {
+  if (!Camera.begin(QVGA, RGB565, 20)) {
     Serial.println("Failed to initialize camera!");
     while (1);
   }
