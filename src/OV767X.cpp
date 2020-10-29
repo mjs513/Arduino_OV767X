@@ -833,5 +833,20 @@ void OV767X::processDMAInterrupt() {
   digitalWriteFast(33, LOW);
 }
 
+//===================================================================
+// Debug show all of the registers
+//===================================================================
+extern "C" int arduino_i2c_read(unsigned short address, unsigned char reg, unsigned char *value);
+#define OV7670_I2C_ADDR 0x42
+
+
+void OV767X::showRegisters() {
+  uint8_t val;
+  for (uint8_t reg = 0; reg <= 0xC9; reg++) {
+      arduino_i2c_read(OV7670_I2C_ADDR >> 1, reg, &val); 
+  }
+
+}
+
 
 OV767X Camera;

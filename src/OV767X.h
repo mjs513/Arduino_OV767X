@@ -117,9 +117,11 @@ public:
   void autoGain();
   void setExposure(int exposure); // 0 - 65535
   void autoExposure();
+  void showRegisters();
 
   // must be called before Camera.begin()
   void setPins(int vsync, int href, int pclk, int xclk, const int dpins[8]);
+
 
 private:
   void beginXClk();

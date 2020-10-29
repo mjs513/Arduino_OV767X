@@ -86,7 +86,7 @@ uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 #define BLUE  ILI9341_BLUE
 #define BLACK ILI9341_BLACK
 #define CENTER ILI9341_t3::CENTER
-t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
+ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 
 #endif
 bool g_continuous_mode = false;
@@ -111,7 +111,7 @@ void setup() {
   tft.begin(16000000);
   RAFB *frame_buffer = (RAFB*)extmem_malloc(sizeof(RAFB) * tft.width() * tft.height() + 32);
   Serial.printf("frame_buffer: %lx", (uint32_t)frame_buffer);
-  frame_buffer =  (((uintptr_t)frame_buffer + 32) & ~ ((uintptr_t) (31)));
+  frame_buffer =   (RAFB*)(((uint32_t)frame_buffer + 32) & 0xffffffe0);
   Serial.printf("frame_buffer aligned: %lx", (uint32_t)frame_buffer);
 
   tft.setFrameBuffer(frame_buffer);
@@ -134,7 +134,7 @@ void setup() {
 
   Serial.println("OV767X Camera Capture"); Serial.flush();
   Serial.println();
-  if (!Camera.begin(QVGA, RGB565, 20)) {
+  if (!Camera.begin(VGA, RGB565, 20)) {
     Serial.println("Failed to initialize camera!");
     while (1);
   }
@@ -151,6 +151,7 @@ void setup() {
   Serial.println("Send the 'c' character to read a frame ...");
   Serial.println("Send the 'd' character to read a frame using DMA ...");
   Serial.println("Send the 's' character to start/stop continuous display mode");
+  Serial.println("send the 'r' Show Camera register settings");
   Serial.println();
   pinMode(31, OUTPUT);
   digitalWrite(31, LOW);
@@ -176,6 +177,9 @@ void loop() {
     int ch = Serial.read();
     while (Serial.read() != -1); // get rid of the rest...
     switch (ch) {
+      case 'r':
+        Camera.showRegisters();
+        break;
       case 'c':
         {
           Serial.println("Reading frame");
