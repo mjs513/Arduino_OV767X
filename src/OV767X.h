@@ -11,13 +11,30 @@
 #if defined(__IMXRT1062__)  // Teensy 4.x
 #include <DMAChannel.h>
 //#define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
-#if 1
+#define USE_CSI_PINS
+
+#if defined USE_CSI_PINS
+#define OV7670_PLK   40 //40 // AD_B1_04 CSI_PIXCLK
+#define OV7670_XCLK_JUMPER 41 // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
+#define OV7670_XCLK  37  //41 // AD_B1_05 CSI_MCLK
+#define OV7670_HREF  16 // AD_B1_07 CSI_HSYNC
+#define OV7670_VSYNC 17 // AD_B1_06 CSI_VSYNC
+
+#define OV7670_D0    27 // AD_B1_15 CSI_D2
+#define OV7670_D1    26 // AD_B1_14 CSI_D3
+#define OV7670_D2    39 // AD_B1_13 CSI_D4
+#define OV7670_D3    38 // AD_B1_12 CSI_D5
+#define OV7670_D4    21 // AD_B1_11 CSI_D6
+#define OV7670_D5    20 // AD_B1_10 CSI_D7
+#define OV7670_D6    23 // AD_B1_09 CSI_D8
+#define OV7670_D7    22 // AD_B1_08 CSI_D9
+#elif 1
 #define OV7670_PLK   4 //40 // AD_B1_04 CSI_PIXCLK
 #define OV7670_XCLK  5  //41 // AD_B1_05 CSI_MCLK
 #define OV7670_HREF  40 // AD_B1_07 CSI_HSYNC
 #define OV7670_VSYNC 41 // AD_B1_06 CSI_VSYNC
 
-#define OV7670_D0    14 // AD_B1_02 1.18
+#define OV7670_D0    27 // AD_B1_02 1.18
 #define OV7670_D1    15 // AD_B1_03 1.19
 #define OV7670_D2    17 // AD_B1_06 1.22
 #define OV7670_D3    16 // AD_B1_07 1.23
@@ -26,14 +43,6 @@
 #define OV7670_D6    20 // AD_B1_10 1.26
 #define OV7670_D7    21 // AD_B1_11 1.27
 
-//#define OV7670_D0    27 // AD_B1_15 CSI_D2
-//#define OV7670_D1    26 // AD_B1_14 CSI_D3
-//#define OV7670_D2    39 // AD_B1_13 CSI_D4
-//#define OV7670_D3    38 // AD_B1_12 CSI_D5
-//#define OV7670_D4    21 // AD_B1_11 CSI_D6
-//#define OV7670_D5    20 // AD_B1_10 CSI_D7
-//#define OV7670_D6    23 // AD_B1_09 CSI_D8
-//#define OV7670_D7    22 // AD_B1_08 CSI_D9
 #else
 // For T4.1 can choose same or could choose a contiguous set of pins only one shift required.
 // Like:  Note was going to try GPI pins 1.24-21 but save SPI1 pins 26,27 as no ...

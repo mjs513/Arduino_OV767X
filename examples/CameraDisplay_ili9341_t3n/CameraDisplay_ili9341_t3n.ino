@@ -77,15 +77,21 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC);
 #else
 #include <ILI9341_t3n.h>
 uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
-#define TFT_CS   0  // AD_B0_02
-#define TFT_DC   1  // AD_B0_03
-#define TFT_RST 255
+//#define TFT_CS   0  // AD_B0_02
+//#define TFT_DC   1  // AD_B0_03
+//#define TFT_RST 255
+#define TFT_CS   10  // AD_B0_02
+#define TFT_DC  9   // AD_B0_03
+#define TFT_RST 8//#define TFT_CS   0  // AD_B0_02
+//#define TFT_DC   1  // AD_B0_03
+//#define TFT_RST 255
+
 
 #define RED   ILI9341_RED
 #define GREEN ILI9341_GREEN
 #define BLUE  ILI9341_BLUE
 #define BLACK ILI9341_BLACK
-#define CENTER ILI9341_t3::CENTER
+#define CENTER ILI9341_t3n::CENTER
 ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 
 #endif
@@ -93,10 +99,16 @@ bool g_continuous_mode = false;
 bool g_dma_mode = false;
 elapsedMillis g_emCycles;
 uint32_t      g_count_frames_output = 0;
+const int pinCamReset = 14;
 
 void setup() {
   while (!Serial && millis() < 4000) ;
   Serial.begin(9600);
+  pinMode(pinCamReset, OUTPUT);
+  delay(10);
+  digitalWriteFast(pinCamReset, LOW);
+  delay(10);
+  digitalWriteFast(pinCamReset, HIGH);  // subsequent resets via SCB
 
 #ifdef ARDUINO_TEENSY41
   Serial.printf("EXT Memory size: %u\n", external_psram_size);
@@ -134,7 +146,10 @@ void setup() {
 
   Serial.println("OV767X Camera Capture"); Serial.flush();
   Serial.println();
-  if (!Camera.begin(VGA, RGB565, 20)) {
+#ifdef OV7670_XCLK_JUMPER
+  pinMode(OV7670_XCLK_JUMPER, INPUT);
+#endif
+  if (!Camera.begin(VGA, RGB565, 5)) {
     Serial.println("Failed to initialize camera!");
     while (1);
   }

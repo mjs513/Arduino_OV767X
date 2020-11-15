@@ -9,6 +9,7 @@
 #include <Wire.h>
 
 #include "OV767X.h"
+#include "arm_math.h"
 
 // if not defined in the variant
 #ifndef digitalPinToBitMask
@@ -263,9 +264,14 @@ void OV767X::readFrame(void* buffer)
       while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
 
 #if defined(__IMXRT1062__)  // Teensy 4.x
-//      uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
+#ifdef USE_CSI_PINS
+      // lets try the one using CSI pins. 
+      uint32_t in =   __RBIT(GPIO6_PSR); // read all bits in parallel
+#else
+      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
       uint32_t in =  GPIO6_PSR >> 18; // read all bits in parallel
       in = (in & 0x3) | ((in & 0x3f0) >> 2);
+ #endif
       digitalToggleFast(32);
 #else
       uint32_t in = port->IN; // read all bits in parallel
@@ -724,14 +730,22 @@ void OV767X::processDMAInterrupt() {
   if ((_dma_index < 3) || (buffer_size  < DMABUFFER_SIZE)) {
     Serial.printf("D(%d, %d, %lu): ", _dma_index, buffer_size, _bytes_left_dma);
     for (uint16_t i = 0; i < 10; i++) {
+#ifdef USE_CSI_PINS
+      uint8_t b =   __RBIT( buffer[i]); // read all bits in parallel
+#else
       uint16_t b = buffer[i] >> 18;
       b = (b & 0x3) | ((b & 0x3f0) >> 2);
+#endif      
       Serial.printf(" %lx(%02x)", buffer[i], b);
     }
     Serial.print("...");
     for (uint16_t i = buffer_size - 6; i < buffer_size; i++) {
+#ifdef USE_CSI_PINS
+      uint8_t b =   __RBIT( buffer[i]); // read all bits in parallel
+#else
       uint16_t b = buffer[i] >> 18;
       b = (b & 0x3) | ((b & 0x3f0) >> 2);
+#endif      
       Serial.printf(" %lx(%02x)", buffer[i], b);
     }
     Serial.println();
@@ -744,8 +758,12 @@ void OV767X::processDMAInterrupt() {
 
     if (*buffer & _hrefMask) {
       // only process if href high...
+#ifdef USE_CSI_PINS
+      uint8_t b =   __RBIT(*buffer); // read all bits in parallel
+#else
       uint16_t b = *buffer >> 18;
       b = (b & 0x3) | ((b & 0x3f0) >> 2);
+#endif      
       if (_save_lsb != 0xffff) {
         *_frame_buffer_pointer++  = (b << 8) | _save_lsb;
         _frame_col_index++;
