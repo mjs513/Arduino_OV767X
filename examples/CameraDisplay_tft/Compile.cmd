@@ -29,7 +29,7 @@ REM defragster was here
 set model=teensy41
 set speed=600
 set opt=o2std
-set usb=serial
+set usb=serial2
 cd.
 set sketchcmd=~
 
