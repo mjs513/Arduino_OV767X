@@ -209,7 +209,7 @@ void setup() {
 uint16_t *last_dma_frame_buffer = nullptr;
 
 void camera_dma_callback(void *pfb) {
-  //Serial.printf("Callback: %x\n", (uint32_t)pfb);
+  Serial.printf("Callback: %x\n", (uint32_t)pfb);
   tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), (uint16_t*)pfb);
   tft.updateScreenAsync();
 
@@ -269,10 +269,10 @@ void loop() {
 #endif
 
           for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
-          tft.fillScreen(BLACK);
 
           if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
-            tft.writeRect(0, 0, Camera.width(), Camera.height(), pixels);
+            if ((Camera.width() != tft.width()) || (Camera.height() != tft.height())) tft.fillScreen(BLACK);
+            tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), pixels);
           } else {
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(),  (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
                                   Camera.width(), Camera.height(), pixels);

@@ -224,7 +224,11 @@ private:
       uint16_t *_dma_last_completed_frame;
   // TBD Allow user to set all of the buffers...
 
+#if defined (ARDUINO_TEENSY_MICROMOD)
+      uint32_t _save_IOMUXC_GPR_GPR27;
+#else
       uint32_t _save_IOMUXC_GPR_GPR26;
+#endif      
       uint32_t _save_pclkPin_portConfigRegister;
 
       uint32_t _bytes_left_dma;
