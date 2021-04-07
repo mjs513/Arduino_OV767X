@@ -13,7 +13,58 @@
 //#define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
 #define USE_CSI_PINS
 
-#if defined USE_CSI_PINS
+
+#define OV7670_USE_DEBUG_PINS
+#ifdef  OV7670_USE_DEBUG_PINS
+#define OV7670_DEBUG_PIN_1 14
+#define OV7670_DEBUG_PIN_2 15
+#define OV7670_DEBUG_PIN_3 3
+#define DebugDigitalWrite(pin, val) digitalWriteFast(pin, val)
+#define DebugDigitalToggle(pin) digitalToggleFast(pin)
+#else
+#define DebugDigitalWrite(pin, val) 
+#define DebugDigitalToggle(pin)
+#endif
+
+
+#ifdef ARDUINO_TEENSY_MICROMOD
+/*
+HM01B0 pin      pin#    NXP     Usage
+----------      ----    ---     -----
+FVLD/VSYNC      33      EMC_07  GPIO
+LVLD/HSYNC      32      B0_12   FlexIO2:12
+MCLK            7       B1_01   PWM
+PCLK            8       B1_00   FlexIO2:16
+D0              40      B0_04   FlexIO2:4
+D1              41      B0_05   FlexIO2:5
+D2              42      B0_06   FlexIO2:6
+D3              43      B0_07   FlexIO2:7
+D4              44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
+D5              45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
+D6              6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
+D7              9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
+TRIG            5       EMC_08  ???
+INT             29      EMC_31  ???
+SCL             19      AD_B1_0 I2C
+SDA             18      AD_B1_1 I2C
+*/
+
+#define OV7670_PLK   8    //8       B1_00   FlexIO2:16
+#define OV7670_XCLK  7    //7       B1_01   PWM
+#define OV7670_HREF  32   //32      B0_12   FlexIO2:12
+#define OV7670_VSYNC 33   //33      EMC_07  GPIO
+#define OV7670_RST   30  // reset pin 
+
+#define OV7670_D0    40   //40      B0_04   FlexIO2:4
+#define OV7670_D1    41   //41      B0_05   FlexIO2:5
+#define OV7670_D2    42   //42      B0_06   FlexIO2:6
+#define OV7670_D3    43   //43      B0_07   FlexIO2:7
+#define OV7670_D4    44   //44      B0_08   FlexIO2:8  - probably not needed, use 4 bit mode
+#define OV7670_D5    45   //45      B0_09   FlexIO2:9  - probably not needed, use 4 bit mode
+#define OV7670_D6    6    //6       B0_10   FlexIO2:10 - probably not needed, use 4 bit mode
+#define OV7670_D7    9    //9       B0_11   FlexIO2:11 - probably not needed, use 4 bit mode
+
+#elif defined USE_CSI_PINS
 #define OV7670_PLK   40 //40 // AD_B1_04 CSI_PIXCLK
 #define OV7670_XCLK_JUMPER 41 // BUGBUG CSI 41 is NOT a PWM pin so we jumper to it...
 #define OV7670_XCLK  37  //41 // AD_B1_05 CSI_MCLK

@@ -159,6 +159,7 @@ int OV767X::begin(int resolution, int format, int fps)
     return 0;
   }
 
+  Serial.printf("Calling ov7670_configure\n");
   ov7670_configure(_ov7670, 0 /*OV7670 = 0, OV7675 = 1*/, format, resolution, 16 /* MHz */,
                    0 /*pll bypass*/, 1 /* pclk_hb_disable */);
 
@@ -249,10 +250,14 @@ void OV767X::readFrame(void* buffer)
 
   // Falling edge indicates start of frame
   //pinMode(_pclkPin, INPUT); // make sure back to input pin...
+  // lets add our own glitch filter.  Say it must be hig for at least 100us
+  elapsedMicros emHigh;
+  do {
+    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
+    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
+  } while (emHigh < 100);
 
-  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  digitalWriteFast(31, HIGH);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_1, HIGH);
   for (int i = 0; i < _height; i++) {
     // rising edge indicates start of line
     while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
@@ -263,7 +268,16 @@ void OV767X::readFrame(void* buffer)
       // rising edges clock each data byte
       while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
 
-#if defined(__IMXRT1062__)  // Teensy 4.x
+#if defined (ARDUINO_TEENSY_MICROMOD)
+      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
+      uint32_t in =  (GPIO7_PSR >> 4) & 0xff; // read all bits in parallel
+      DebugDigitalToggle(OV7670_DEBUG_PIN_2);
+      static uint8_t dump_first_captures = 16;
+      if (dump_first_captures) {
+        Serial.println(in, HEX);
+        dump_first_captures--;
+      }
+#elif defined(__IMXRT1062__)  // Teensy 4.x
 #ifdef USE_CSI_PINS
       // lets try the one using CSI pins. 
       uint32_t in =   __RBIT(GPIO6_PSR); // read all bits in parallel
@@ -272,7 +286,7 @@ void OV767X::readFrame(void* buffer)
       uint32_t in =  GPIO6_PSR >> 18; // read all bits in parallel
       in = (in & 0x3) | ((in & 0x3f0) >> 2);
  #endif
-      digitalToggleFast(32);
+      DebugDigitalToggle(OV7670_DEBUG_PIN_2);
 #else
       uint32_t in = port->IN; // read all bits in parallel
       in >>= 2; // place bits 0 and 1 at the "bottom" of the register
@@ -285,12 +299,12 @@ void OV767X::readFrame(void* buffer)
       }
       while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
     }
-    digitalToggleFast(31);
+    DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
     while ((*_hrefPort & _hrefMask) != 0); // wait for LOW
     interrupts();
   }
-  digitalWriteFast(31, LOW);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_1, LOW);
 
 }
 
@@ -430,7 +444,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc)
 void OV767X::readFrameDMA(void* buffer)
 {
 #if 0
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   // lets figure out how many bytes we will tranfer per setting...
   //  _dmasettings[0].begin();
   _frame_row_buffer_pointer = _frame_buffer_pointer = (uint16_t *)buffer;
@@ -449,14 +463,14 @@ void OV767X::readFrameDMA(void* buffer)
   _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
   _dmasettings[0].interruptAtCompletion();  // we will need an interrupt to process this.
   _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   _dmasettings[1].source(GPIO1_DR); // setup source.
   _dmasettings[1].destinationBuffer(_dmaBuffer2, DMABUFFER_SIZE * 4);  // 32 bits per logical byte
   _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
   _dmasettings[1].interruptAtCompletion();  // we will need an interrupt to process this.
   _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   GPIO1_GDIR = 0; // set all as input...
   GPIO1_DR = 0; // see if I can clear it out...
@@ -464,7 +478,7 @@ void OV767X::readFrameDMA(void* buffer)
   _dmachannel = _dmasettings[0];  // setup the first on...
   _dmachannel.attachInterrupt(dmaInterrupt);
   _dmachannel.triggerAtHardwareEvent(DMAMUX_SOURCE_XBAR1_0);
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Lets try to setup the DMA setup...
   // first see if we can convert the _pclk to be an XBAR Input pin...
@@ -475,7 +489,7 @@ void OV767X::readFrameDMA(void* buffer)
   // route the timer outputs through XBAR to edge trigger DMA request
   CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
   xbar_connect(XBARA1_IN_IOMUX_XBAR_INOUT08, XBARA1_OUT_DMA_CH_MUX_REQ30);
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Tell XBAR to dDMA on Rising
   XBARA1_CTRL0 = XBARA_CTRL_STS0 | XBARA_CTRL_EDGE0(1) | XBARA_CTRL_DEN0/* | XBARA_CTRL_IEN0 */ ;
@@ -491,12 +505,12 @@ void OV767X::readFrameDMA(void* buffer)
   IOMUXC_GPR_GPR26 &= ~_hrefMask; //
 
 
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Falling edge indicates start of frame
   while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
   while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  digitalWriteFast(32, HIGH);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
 
 // Debug stuff for now
   IOMUXC_GPR_GPR26 &= ~_vsyncMask; //
@@ -522,7 +536,7 @@ void OV767X::readFrameDMA(void* buffer)
   elapsedMillis em = 0;
   while ((em < 1000) && !_dma_done) ; // wait up to a second...
   if (!_dma_done) Serial.println("Dma did not complete");
-  digitalWriteFast(32, LOW);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
 
 #ifdef DEBUG_CAMERA
   dumpDMA_TCD(&_dmachannel);
@@ -553,7 +567,7 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   }
   // remember the call back if passed in
   _callback = callback;
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   // lets figure out how many bytes we will tranfer per setting...
   //  _dmasettings[0].begin();
   _frame_row_buffer_pointer = _frame_buffer_pointer = (uint16_t *)_frame_buffer_1;
@@ -566,14 +580,14 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
   _dmasettings[0].interruptAtCompletion();  // we will need an interrupt to process this.
   _dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   _dmasettings[1].source(GPIO1_DR); // setup source.
   _dmasettings[1].destinationBuffer(_dmaBuffer2, DMABUFFER_SIZE * 4);  // 32 bits per logical byte
   _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
   _dmasettings[1].interruptAtCompletion();  // we will need an interrupt to process this.
   _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   GPIO1_GDIR = 0; // set all as input...
   GPIO1_DR = 0; // see if I can clear it out...
@@ -581,7 +595,7 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   _dmachannel = _dmasettings[0];  // setup the first on...
   _dmachannel.attachInterrupt(dmaInterrupt);
   _dmachannel.triggerAtHardwareEvent(DMAMUX_SOURCE_XBAR1_0);
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Lets try to setup the DMA setup...
   // first see if we can convert the _pclk to be an XBAR Input pin...
@@ -592,13 +606,14 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   // route the timer outputs through XBAR to edge trigger DMA request
   CCM_CCGR2 |= CCM_CCGR2_XBAR1(CCM_CCGR_ON);
   xbar_connect(XBARA1_IN_IOMUX_XBAR_INOUT08, XBARA1_OUT_DMA_CH_MUX_REQ30);
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Tell XBAR to dDMA on Rising
   XBARA1_CTRL0 = XBARA_CTRL_STS0 | XBARA_CTRL_EDGE0(1) | XBARA_CTRL_DEN0/* | XBARA_CTRL_IEN0 */ ;
 
   IOMUXC_GPR_GPR6 &= ~(IOMUXC_GPR_GPR6_IOMUXC_XBAR_DIR_SEL_8);  // Make sure it is input mode
   IOMUXC_XBAR1_IN08_SELECT_INPUT = 0; // Make sure this signal goes to this pin...
+
 
   // Need to switch the IO pins back to GPI1 from GPIO6
   _save_IOMUXC_GPR_GPR26 = IOMUXC_GPR_GPR26;  // save away the configuration before we change...
@@ -608,12 +623,12 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   IOMUXC_GPR_GPR26 &= ~_hrefMask; //
 
 
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
   // Falling edge indicates start of frame
 //  while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
 //  while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-//  digitalWriteFast(32, HIGH);
+//  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
 
 // Debug stuff for now
 
@@ -634,7 +649,7 @@ bool OV767X::startReadFrameDMA(void(*callback)(void *frame_buffer))
   // Now start an interrupt for start of frame. 
   attachInterrupt(_vsyncPin, &frameStartInterrupt, FALLING);
 
-  digitalToggleFast(31);
+  DebugDigitalToggle(OV7670_DEBUG_PIN_1);
   return true;
 }
 
@@ -646,7 +661,7 @@ bool OV767X::stopReadFrameDMA()
 
   // hopefully it start here (fingers crossed)
   // for now will hang here to see if completes...
-  digitalWriteFast(32, HIGH);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
   elapsedMillis em = 0;
   // tell the background stuff DMA stuff to exit.
   // Note: for now let it end on on, later could disable the DMA directly.
@@ -654,7 +669,7 @@ bool OV767X::stopReadFrameDMA()
 
   while ((em < 1000) && (_dma_state == DMASTATE_STOP_REQUESTED)) ; // wait up to a second...
   if (_dma_state != DMA_STATE_STOPPED) Serial.println("stopReadFrameDMA DMA did not exit correctly...");
-  digitalWriteFast(32, LOW);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
 
 #ifdef DEBUG_CAMERA
   dumpDMA_TCD(&_dmachannel);
@@ -677,7 +692,7 @@ void  OV767X::frameStartInterrupt() {
 }
 
 void  OV767X::processFrameStartInterrupt() {
-  digitalWriteFast(32, HIGH);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
   _bytes_left_dma = _width * _height * 2; // for now assuming color 565 image...
   _dma_index = 0;
   _frame_col_index = 0;  // which column we are in a row
@@ -704,7 +719,7 @@ void OV767X::dmaInterrupt() {
 void OV767X::processDMAInterrupt() {
   _dmachannel.clearInterrupt(); // tell system we processed it.
   asm("DSB");
-  digitalWriteFast(33, HIGH);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
 
   if (_dma_state == DMA_STATE_STOPPED) {
     Serial.println("OV767X::dmaInterrupt called when DMA_STATE_STOPPED");
@@ -807,7 +822,7 @@ void OV767X::processDMAInterrupt() {
 
   if (_frame_row_index == _height) { // We finished a frame lets bail
     _dmachannel.disable();  // disable the DMA now...
-    digitalWriteFast(32, LOW);
+    DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
     Serial.println("EOF");
     _frame_row_index = 0;
     _dma_frame_count++;
@@ -820,9 +835,9 @@ void OV767X::processDMAInterrupt() {
     }
     _frame_buffer_pointer = _frame_row_buffer_pointer;
 
-    digitalToggleFast(31);
+    DebugDigitalToggle(OV7670_DEBUG_PIN_1);
     if (_callback) (*_callback)(_dma_last_completed_frame);
-    digitalToggleFast(31);
+    DebugDigitalToggle(OV7670_DEBUG_PIN_1);
 
 
     if (_dma_state == DMASTATE_STOP_REQUESTED) {
@@ -848,7 +863,7 @@ void OV767X::processDMAInterrupt() {
       }
     }
   }
-  digitalWriteFast(33, LOW);
+  DebugDigitalWrite(OV7670_DEBUG_PIN_3, LOW);
 }
 
 //===================================================================

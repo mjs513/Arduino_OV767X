@@ -14,8 +14,8 @@ rem
 rem Edit these paths:
 
 set arduino=C:\arduino-1.8.13
-rem set TyTools=C:\Program Files\TyQt
-set TyTools=D:\GitHub\tytools\build\win64\Release
+set TyTools=C:\Program Files\TyQt
+rem set TyTools=D:\GitHub\tytools\build\win64_new\Release
 set libs=C:\Users\kurte\Documents\Arduino\libraries
 set tools=D:\GitHub\Tset
 
@@ -26,11 +26,11 @@ rem
 
 REM defragster was here 
 
-set model=teensyMM
+set model=teensy41
 set speed=600
 set opt=o2std
-set usb=serial
-cd.
+set usb=serial2
+cd..
 set sketchcmd=~
 
 rem set keys=de-de
@@ -51,9 +51,8 @@ if "%sketchname%"=="" (
 
 set myfolder=.\
 set ino="%myfolder%%sketchname%"
-if "x%TsetTemp%"=="%TsetTemp%x" set TsetTemp=%temp%
-set temp1="%TsetTemp%\\arduino_build_%sketchname%"
-set temp2="%TsetTemp%\\arduino_cache_%sketchname%"
+set temp1="%temp%\\arduino_build_%sketchname%"
+set temp2="%temp%\\arduino_cache_%sketchname%"
 set fqbn=teensy:avr:%model%:usb=%usb%,speed=%speed%,opt=%opt%,keys=%keys%
 
 rem Comment line below to build prior to TeensyDuino 1.50
@@ -73,22 +72,17 @@ if not exist %temp2% mkdir %temp2%
 REM if not exist %temp1%\pch mkdir %temp1%\pch
 REM if exist userConfig.h copy userConfig.h %temp1%\pch
 
-if exist %arduino%\portable\sketchbook\libraries\.  set libs=%arduino%\portable\sketchbook\libraries
-if exist %arduino%\portable\sketchbook\libraries\.  echo Building PORTABLE: %libs% 
-
 echo Building Sketch: %ino%
 "%arduino%\arduino-builder" -verbose=1 -warnings=more -compile -logger=human -hardware "%arduino%\hardware" -hardware "%LOCALAPPDATA%\Arduino15\packages" -tools "%arduino%\tools-builder" -tools "%arduino%\hardware\tools\avr" -tools "%LOCALAPPDATA%\Arduino15\packages" -built-in-libraries "%arduino%\libraries" -libraries "%libs%" -fqbn=%fqbn% -build-path %temp1% -build-cache "%temp2%"  %ino%
-
-if "%model%"=="teensyMM" set model=TEENSY_MICROMOD
 
 if not "%1"=="0" (
 	REM Use TyComm with IDE to reboot for TeensyLoader Update // tycmd reset -b
   if "%errorlevel%"=="0" (
 REM when TyComm integrated this .model. file will exist
     if EXIST "%temp1%\%sketchname%.%model%.hex" (
-      "%TyTools%\TyCommanderC.exe" upload --autostart --wait  "%temp1%\%sketchname%.%model%.hex" ) else ( 
-      "%TyTools%\TyCommanderC.exe" upload --autostart --wait --delegate "%temp1%\%sketchname%.hex" )
-    rem "%arduino%\hardware\tools\arm\bin\arm-none-eabi-gcc-nm.exe" -n "%temp1%\%sketchname%.elf" | "%tools%\imxrt_size.exe"
+      "%TyTools%\TyCommanderC.exe" upload --autostart --wait  "%temp1%\%sketchname%.%model%.hex" )
+REM this fights with TeensyLoader     else ( "%TyTools%\TyCommanderC.exe" upload --autostart --wait  "%temp1%\%sketchname%.hex" )
+    "%arduino%\hardware\tools\arm\bin\arm-none-eabi-gcc-nm.exe" -n "%temp1%\%sketchname%.elf" | "%tools%\imxrt_size.exe"
     REM start "%tools%\GDB.cmd" "%arduino%\hardware\tools\arm\bin\arm-none-eabi-gdb.exe" "%temp1%\%sketchname%.elf"
   )  
 )

@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <usb_serial.h>
 typedef uint8_t u8;
 typedef uint32_t u32;
 typedef int32_t __s32;
@@ -1178,8 +1178,13 @@ static int ov7670_apply_fmt(struct v4l2_subdev *sd)
 	if (info->mbus_config & V4L2_MBUS_HSYNC_ACTIVE_LOW)
 		com10 |= COM10_HREF_REV;
 #endif
-	if (info->pclk_hb_disable)
+	usb_serial_write("$$pclk_hb_disable:", 18);
+	usb_serial_putchar((info->pclk_hb_disable)? '1' : '0');
+	usb_serial_write("\n\r", 2);
+	if (info->pclk_hb_disable) {
+
 		com10 |= COM10_PCLK_HB;
+	}
 	ret = ov7670_write(sd, REG_COM10, com10);
 	if (ret)
 		return ret;

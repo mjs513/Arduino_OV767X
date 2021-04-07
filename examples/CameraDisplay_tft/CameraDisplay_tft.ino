@@ -51,7 +51,8 @@
 
   This example code is in the public domain.
 */
-#define USE_ILI9488
+//#define USE_ILI9488
+#define USE_ST7789
 
 #ifdef ARDUINO_TEENSY41
 extern "C" {
@@ -60,7 +61,31 @@ extern "C" {
 #endif
 
 #include <Arduino_OV767X.h>
-#ifdef USE_ILI9488
+
+#include "arm_math.h"
+
+#if defined(USE_ST7789)
+#include <ST7735_t3.h> // Hardware-specific library
+#include <ST7789_t3.h> // Hardware-specific library
+
+// Hacked up for TeensyMM
+#define TFT_MISO  12
+#define TFT_MOSI  11  //a12
+#define TFT_SCK   13  //a13
+#define TFT_DC   34 //9 
+#define TFT_CS   38 //10  
+#define TFT_RST   39 //8
+
+#define RED   ST77XX_RED
+#define GREEN ST77XX_GREEN
+#define BLUE  ST77XX_BLUE
+#define BLACK ST77XX_BLACK
+#define CENTER ST7789_t3::CENTER
+
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
+uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+
+#elif defined(USE_ILI9488)
 #include <ILI9488_t3.h>
 uint16_t pixels[640 * 480] EXTMEM; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
@@ -99,7 +124,7 @@ bool g_continuous_mode = false;
 bool g_dma_mode = false;
 elapsedMillis g_emCycles;
 uint32_t      g_count_frames_output = 0;
-const int pinCamReset = 14;
+const int pinCamReset = 30;
 
 void setup() {
   while (!Serial && millis() < 4000) ;
@@ -119,7 +144,9 @@ void setup() {
                 (uint32_t)&_extram_end);
 #endif
 
-#ifdef USE_ILI9488
+#if defined(USE_ST7789)
+  tft.init(240, 320);           // Init ST7789 320x240
+#elif defined(USE_ILI9488)
   tft.begin(16000000);
   RAFB *frame_buffer = (RAFB*)extmem_malloc(sizeof(RAFB) * tft.width() * tft.height() + 32);
   Serial.printf("frame_buffer: %lx", (uint32_t)frame_buffer);
@@ -149,7 +176,7 @@ void setup() {
 #ifdef OV7670_XCLK_JUMPER
   pinMode(OV7670_XCLK_JUMPER, INPUT);
 #endif
-  if (!Camera.begin(VGA, RGB565, 5)) {
+  if (!Camera.begin(QVGA, RGB565, 5)) {
     Serial.println("Failed to initialize camera!");
     while (1);
   }
@@ -162,19 +189,21 @@ void setup() {
   Serial.print("\tbits per pixel = ");
   Serial.println(Camera.bitsPerPixel());
   Serial.println();
+  Serial.printf("TFT Width = %u Height = %u\n\n", tft.width(), tft.height());
 
   Serial.println("Send the 'c' character to read a frame ...");
   Serial.println("Send the 'd' character to read a frame using DMA ...");
   Serial.println("Send the 's' character to start/stop continuous display mode");
   Serial.println("send the 'r' Show Camera register settings");
   Serial.println();
-  pinMode(31, OUTPUT);
-  digitalWrite(31, LOW);
-  pinMode(32, OUTPUT);
-  digitalWrite(32, LOW);
-  pinMode(33, OUTPUT);
-  digitalWrite(33, LOW);
-
+#ifdef  OV7670_USE_DEBUG_PINS
+  pinMode(OV7670_DEBUG_PIN_1, OUTPUT);
+  digitalWrite(OV7670_DEBUG_PIN_1, LOW);
+  pinMode(OV7670_DEBUG_PIN_2, OUTPUT);
+  digitalWrite(OV7670_DEBUG_PIN_2, LOW);
+  pinMode(OV7670_DEBUG_PIN_3, OUTPUT);
+  digitalWrite(OV7670_DEBUG_PIN_3, LOW);
+#endif
 }
 
 uint16_t *last_dma_frame_buffer = nullptr;
@@ -199,21 +228,59 @@ void loop() {
         {
           Serial.println("Reading frame");
           memset((uint8_t*)pixels, 0, sizeof(pixels));
+          //digitalWriteFast(14, HIGH);
           Camera.readFrame(pixels);
+          //digitalWriteFast(14, LOW);
+          Serial.println("Finished reading frame"); Serial.flush();
 
+          // Lets print out some of the first bytes and last bytes of the first couple of rows.
+          for (volatile uint16_t *pfb = pixels; pfb < (pixels + 4 *Camera.width()); pfb += Camera.width()) {
+            Serial.printf("\n%08x: ", (uint32_t)pfb);
+            for (uint16_t i = 0; i < 8; i++) Serial.printf("%04x ", pfb[i]);
+            Serial.print("..");
+            Serial.print("..");
+            for (uint16_t i = Camera.width() - 8; i < Camera.width(); i++) Serial.printf("%04x ", pfb[i]);
+          }
+          Serial.println("\n");
+
+
+
+          // Lets dump out some of center of image.   
+          Serial.println("Show Center pixels\n");
+          for (volatile uint16_t *pfb = pixels + Camera.width() * ((Camera.height() / 2) - 8); pfb < (pixels + Camera.width() * (Camera.height() / 2 + 8)); pfb += Camera.width()) {
+            Serial.printf("\n%08x: ", (uint32_t)pfb);
+            for (uint16_t i = 0; i < 8; i++) Serial.printf("%04x ", pfb[i]);
+            Serial.print("..");
+            for (uint16_t i = (Camera.width() / 2) - 4; i < (Camera.width() / 2) + 4; i++) Serial.printf("%04x ", pfb[i]);
+            Serial.print("..");
+            for (uint16_t i = Camera.width() - 8; i < Camera.width(); i++) Serial.printf("%04x ", pfb[i]);
+          }
+          Serial.println("\n...");
 
           int numPixels = Camera.width() * Camera.height();
-          int camera_width = Camera.width();
+          //int camera_width = Camera.width();
+#if 0
+
+          uint8_t *pixel_buffer = (uint8_t*)pixels;
+          for (int i = 0; i < numPixels*2; i++) {
+            uint32_t l = __RBIT(pixel_buffer[i]);
+            pixel_buffer[i] = l >> 24;
+          }
+#endif
 
           for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
-
           tft.fillScreen(BLACK);
 
-          if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height()))
-            tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), pixels);
-          else
+          if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
+            tft.writeRect(0, 0, Camera.width(), Camera.height(), pixels);
+          } else {
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(),  (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
                                   Camera.width(), Camera.height(), pixels);
+          }
+
+
+
+#if 0
           for (int i = 0; i < numPixels; i++) {
             unsigned short p = pixels[i];
 
@@ -232,6 +299,7 @@ void loop() {
             Serial.print(p, HEX);
             if ((i % camera_width) == (camera_width - 1)) Serial.println();
           }
+#endif          
           g_continuous_mode = false;
           Serial.println();
           break;
