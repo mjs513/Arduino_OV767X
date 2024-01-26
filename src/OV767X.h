@@ -10,8 +10,12 @@
 #include <Arduino.h>
 #if defined(__IMXRT1062__)  // Teensy 4.x
 #include <DMAChannel.h>
+#include <Wire.h>
+#include <FlexIO_t4.h>
+
+
 //#define OV7670_VSYNC 2    // Lets setup for T4.1 CSI pins
-#define USE_CSI_PINS
+//#define USE_CSI_PINS
 
 
 #define OV7670_USE_DEBUG_PINS
@@ -51,9 +55,9 @@ SDA             18      AD_B1_1 I2C
 
 #define OV7670_PLK   8    //8       B1_00   FlexIO2:16
 #define OV7670_XCLK  7    //7       B1_01   PWM
-#define OV7670_HREF  32   //32      B0_12   FlexIO2:12
-#define OV7670_VSYNC 33   //33      EMC_07  GPIO
-#define OV7670_RST   30  // reset pin 
+#define OV7670_HREF  46   //32      B0_12   FlexIO2:12
+#define OV7670_VSYNC 21   //33      EMC_07  GPIO
+#define OV7670_RST   255  // reset pin 
 
 #define OV7670_D0    40   //40      B0_04   FlexIO2:4
 #define OV7670_D1    41   //41      B0_05   FlexIO2:5
@@ -134,6 +138,12 @@ enum
   QQVGA = 4,  // 160x120
 };
 
+typedef enum {
+	HM01B0_TEENSY_MICROMOD_FLEXIO_8BIT = 0,
+	HM01B0_TEENSY_MICROMOD_FLEXIO_4BIT,
+} hw_config_t;
+
+
 class OV767X
 {
 public:
@@ -148,16 +158,39 @@ public:
   int height() const;
   int bitsPerPixel() const;
   int bytesPerPixel() const;
+/********************************************************************************************/
+	//-------------------------------------------------------
+	//Generic Read Frame base on _hw_config
+	void readFrame(void* buffer);
+	
+	//normal Read mode
+	void readFrameGPIO(void* buffer);
+	void readFrame4BitGPIO(void* buffer);
+	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
+	void stopReadContinuous();
 
-  void readFrame(void* buffer);
+	//FlexIO is default mode for the camera
+	void readFrameFlexIO(void* buffer);
+	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
+	bool stopReadFlexIO();
 
-  // Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
-  // So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
-  // buffers, with the option of setting your own buffers if desired.
-  bool startReadFrameDMA(void(*callback)(void *frame_buffer)=nullptr);
-  bool stopReadFrameDMA();
-  inline uint32_t frameCount() {return _dma_frame_count;}
-  inline void *frameBuffer() {return _dma_last_completed_frame;}
+	// Lets try a dma version.  Doing one DMA that is synchronous does not gain anything
+	// So lets have a start, stop... Have it allocate 2 frame buffers and it's own DMA 
+	// buffers, with the option of setting your own buffers if desired.
+	bool startReadFrameDMA(bool (*callback)(void *frame_buffer)=nullptr, uint8_t *fb1=nullptr, uint8_t *fb2=nullptr);
+	void changeFrameBuffer(uint8_t *fbFrom, uint8_t *fbTo) {
+		if (_frame_buffer_1 == fbFrom) _frame_buffer_1 = fbTo;
+		else if (_frame_buffer_2 == fbFrom) _frame_buffer_2 = fbTo;
+	}
+	bool stopReadFrameDMA();	
+	inline uint32_t frameCount() {return _dma_frame_count;}
+	inline void *frameBuffer() {return _dma_last_completed_frame;}
+	void captureFrameStatistics();
+	
+	void setVSyncISRPriority(uint8_t priority) {NVIC_SET_PRIORITY(IRQ_GPIO6789, priority); }
+	void setDMACompleteISRPriority(uint8_t priority) {NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, priority); }
+    /********************************************************************************************/
+
   // TBD Allow user to set all of the buffers...
   void readFrameDMA(void* buffer);
 
@@ -182,6 +215,7 @@ public:
   // must be called before Camera.begin()
   void setPins(int vsync, int href, int pclk, int xclk, const int dpins[8]);
 
+	hw_config_t _hw_config;
 
 private:
   void beginXClk();
@@ -211,44 +245,64 @@ private:
   int _saturation;
   int _hue;
 
-  // Lets try adding some DMA support.
-  #if defined(__IMXRT1062__)  // Teensy 4.x
-      enum {DMABUFFER_SIZE=1280};  // 640x480  so 640*2*2
-      static DMAChannel _dmachannel;
-      static DMASetting _dmasettings[2];
-      static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
-      static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
+	bool flexio_configure();
 
-      void (*_callback)(void *frame_buffer) =nullptr ;
-      uint32_t  _dma_frame_count;
-      uint16_t *_dma_last_completed_frame;
-  // TBD Allow user to set all of the buffers...
+	// DMA STUFF
+	enum {DMABUFFER_SIZE=1296};  // 640x480  so 640*2*2
+	static DMAChannel _dmachannel;
+	static DMASetting _dmasettings[4];
+	static uint32_t _dmaBuffer1[DMABUFFER_SIZE];
+	static uint32_t _dmaBuffer2[DMABUFFER_SIZE];
 
-#if defined (ARDUINO_TEENSY_MICROMOD)
-      uint32_t _save_IOMUXC_GPR_GPR27;
-#else
-      uint32_t _save_IOMUXC_GPR_GPR26;
-#endif      
-      uint32_t _save_pclkPin_portConfigRegister;
+	bool (*_callback)(void *frame_buffer) = nullptr ;
+	uint32_t  _dma_frame_count;
+	uint8_t *_dma_last_completed_frame;
+	// TBD Allow user to set all of the buffers...
 
-      uint32_t _bytes_left_dma;
-      uint16_t  _save_lsb;
-      uint16_t  _frame_col_index;  // which column we are in a row
-      uint16_t  _frame_row_index;  // which row
 
-      uint16_t *_frame_buffer_1 = nullptr;
-      uint16_t *_frame_buffer_2 = nullptr;
-      uint16_t *_frame_buffer_pointer;
-      uint16_t *_frame_row_buffer_pointer; // start of the row
-      uint16_t _dma_index;
-      enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED};
-      volatile uint8_t _dma_state;
-  static void dmaInterrupt(); 
-  void processDMAInterrupt();
-  static void frameStartInterrupt();
-  void processFrameStartInterrupt();
+	DMAChannel dma_flexio;
 
-  #endif
+	// Added settings for configurable flexio
+	FlexIOHandler *_pflex;
+    IMXRT_FLEXIO_t *_pflexio;
+	uint8_t _fshifter;
+	uint8_t _fshifter_mask;
+    uint8_t _ftimer;
+    uint8_t _dma_source;
+
+
+
+	#if defined (ARDUINO_TEENSY_MICROMOD)
+	uint32_t _save_IOMUXC_GPR_GPR27;
+	#else
+	uint32_t _save_IOMUXC_GPR_GPR26;
+	#endif      
+	uint32_t _save_pclkPin_portConfigRegister;
+
+	uint32_t _bytes_left_dma;
+	uint16_t  _save_lsb;
+	uint16_t  _frame_col_index;  // which column we are in a row
+	uint16_t  _frame_row_index;  // which row
+	const uint16_t  _frame_ignore_cols = 0; // how many cols to ignore per row
+	uint8_t *_frame_buffer_1 = nullptr;
+	uint8_t *_frame_buffer_2 = nullptr;
+	uint8_t *_frame_buffer_pointer;
+	uint8_t *_frame_row_buffer_pointer; // start of the row
+	uint8_t _dma_index;
+	bool 	_dma_active;
+	enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED, DMA_STATE_ONE_FRAME};
+	volatile uint8_t _dma_state;
+	static void dmaInterrupt(); 
+	void processDMAInterrupt();
+	static void frameStartInterrupt();
+	void processFrameStartInterrupt();
+	static void dmaInterruptFlexIO();
+	void processDMAInterruptFlexIO();
+	static void frameStartInterruptFlexIO();
+	void processFrameStartInterruptFlexIO();
+	static OV767X *active_dma_camera;
+
+
 };
 
 extern OV767X Camera;
