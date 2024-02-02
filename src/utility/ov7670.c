@@ -1185,9 +1185,9 @@ static int ov7670_apply_fmt(struct v4l2_subdev *sd)
 
 		com10 |= COM10_PCLK_HB;
 	}
-	ret = ov7670_write(sd, REG_COM10, com10);
-	if (ret)
-		return ret;
+//	ret = ov7670_write(sd, REG_COM10, com10);
+//	if (ret)
+//		return ret;
 
 	/*
 	 * Now write the rest of the array.  Also store start/stops

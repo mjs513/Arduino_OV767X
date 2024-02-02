@@ -20,6 +20,8 @@
 #define portInputRegister(P) ((P == 0) ? &NRF_P0->IN : &NRF_P1->IN)
 #endif
 
+#define CNT_SHIFTERS 1
+
 extern "C" {
   // defined in utility/ov7670.c:
   struct ov7670_fract {
@@ -133,7 +135,7 @@ int OV767X::begin(int resolution, int format, int fps)
 
   pinMode(_vsyncPin, INPUT);
   pinMode(_hrefPin, INPUT);
-  pinMode(_pclkPin, INPUT);
+  pinMode(_pclkPin, INPUT_PULLDOWN);
 //  pinMode(_xclkPin, OUTPUT);
 #ifdef DEBUG_CAMERA
   Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
@@ -340,8 +342,8 @@ void OV767X::endXClk()
 
 
 #define FLEXIO_USE_DMA
-void OV767X::readFrame(void* buffer){
-	readFrameFlexIO(buffer);
+void OV767X::readFrame(void* buffer, bool use_dma){
+	readFrameFlexIO(buffer, use_dma);
 	
 }
 
@@ -459,7 +461,6 @@ void OV767X::readFrame4BitGPIO(void* buffer)
 
 bool OV767X::flexio_configure()
 {
-    #define CNT_SHIFTERS 8
 
     // Going to try this using my FlexIO library.
 
@@ -512,20 +513,30 @@ bool OV767X::flexio_configure()
       Serial.println("Custom - Flexio 4 bit mode not supported");
       return false;
     }
+#if (CNT_SHIFTERS == 1)
+    // Needs Shifter 3 (maybe 7 would work as well?)
+    if (_pflex->claimShifter(3)) _fshifter = 3;
+    else if (_pflex->claimShifter(7)) _fshifter = 7;
+    else {
+      Serial.printf("HM01B0 Flex IO: Could not claim Shifter 3 or 7\n");
+      return false;
+    }
+    _fshifter_mask = 1 << _fshifter;   // 4 channels.
+    _dma_source = _pflex->shiftersDMAChannel(_fshifter); // looks like they use 
 
-#if (CNT_SHIFTERS == 4)
+#elif (CNT_SHIFTERS == 4)
     // lets try to claim for shifters 0-3 or 4-7
     // Needs Shifter 3 (maybe 7 would work as well?)
     for (_fshifter = 0; _fshifter < 4; _fshifter++) {
       if (!_pflex->claimShifter(_fshifter)) break;
     }
 
-    if (_fshifter < 4) {
+    if (_fshifter < CNT_SHIFTERS) {
       // failed on 0-3 - released any we claimed
       Serial.printf("Failed to claim 0-3(%u) shifters trying 4-7\n", _fshifter);
       while (_fshifter > 0) _pflex->freeShifter(--_fshifter);  // release any we grabbed
 
-      for (_fshifter = 4; _fshifter < 8; _fshifter++) {
+      for (_fshifter = 4; _fshifter < (4 + CNT_SHIFTERS); _fshifter++) {
         if (!_pflex->claimShifter(_fshifter)) {
           Serial.printf("HM01B0 Flex IO: Could not claim Shifter %u\n", _fshifter);
           while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
@@ -616,11 +627,15 @@ bool OV767X::flexio_configure()
       //  SSTOP: Stop bit, 0 = disabled, 1 = match, 2 = use zero, 3 = use one
       //  SSTART: Start bit, 0 = disabled, 1 = disabled, 2 = use zero, 3 = use one
       // setup the for shifters
-      for (uint8_t i = 0; i < (CNT_SHIFTERS - 1); i++) {
-        _pflexio->SHIFTCFG[i] = FLEXIO_SHIFTCFG_PWIDTH(7) | FLEXIO_SHIFTCFG_INSRC;
+      #if (CNT_SHIFTERS == 1)
+      _pflexio->SHIFTCFG[_fshifter] = FLEXIO_SHIFTCFG_PWIDTH(7);
+      #else
+      for (int i = 0; i < (CNT_SHIFTERS - 1); i++) {
+        _pflexio->SHIFTCFG[_fshifter + i] = FLEXIO_SHIFTCFG_PWIDTH(7) | FLEXIO_SHIFTCFG_INSRC;
       }
-      _pflexio->SHIFTCFG[CNT_SHIFTERS-1] = FLEXIO_SHIFTCFG_PWIDTH(7);
-          
+      _pflexio->SHIFTCFG[_fshifter + CNT_SHIFTERS-1] = FLEXIO_SHIFTCFG_PWIDTH(7);
+      #endif
+
       // Timer model, pages 2891-2893
       // TIMCMP, page 2937
       // using 4 shifters
@@ -638,11 +653,13 @@ bool OV767X::flexio_configure()
       //  PINSEL: which pin is used by the Timer input or output
       //  PINPOL: 0 = active high, 1 = active low
       //  TIMOD: mode, 0 = disable, 1 = 8 bit baud rate, 2 = 8 bit PWM, 3 = 16 bit
+      #define FLEXIO_TIMER_TRIGGER_SEL_PININPUT(x) ((uint32_t)(x) << 1U)
       _pflexio->TIMCTL[_ftimer] = FLEXIO_TIMCTL_TIMOD(3)
           | FLEXIO_TIMCTL_PINSEL(tpclk_pin) // "Pin" is 16 = PCLK
-          | FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 = HSYNC
+          //| FLEXIO_TIMCTL_TRGSEL(4 * (thsync_pin/2)) // "Trigger" is 12 = HSYNC
+          | FLEXIO_TIMCTL_TRGSEL(FLEXIO_TIMER_TRIGGER_SEL_PININPUT(thsync_pin)) // "Trigger" is 12 = HSYNC
           | FLEXIO_TIMCTL_TRGSRC;
-
+      Serial.printf("TIMCTL: %08X PINSEL: %x THSYNC: %x\n", _pflexio->TIMCTL[_ftimer], tpclk_pin, thsync_pin);
 
     // SHIFTCTL, page 2926
     //  TIMSEL: which Timer is used for controlling the logic/shift register
@@ -711,7 +728,7 @@ bool OV767X::flexio_configure()
     for (uint8_t i = 0; i < CNT_SHIFTERS; i++) Serial.printf(" %08X", _pflexio->SHIFTCTL[_fshifter + i]);
     Serial.printf("\n     TIMCMP = %08X\n", _pflexio->TIMCMP[_ftimer]);
     Serial.printf("     TIMCFG = %08X\n", _pflexio->TIMCFG[_ftimer]);
-    Serial.printf("     TIMCTL = %08X\n", _pflexio->SHIFTCTL[_fshifter]);
+    Serial.printf("     TIMCTL = %08X\n", _pflexio->TIMCTL[_ftimer]);
 #endif
 return true;
 }
@@ -732,7 +749,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc, const char *psz_title) {
       dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
 
-void OV767X::readFrameFlexIO(void* buffer)
+void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
 {
     //flexio_configure(); // one-time hardware setup
     // wait for VSYNC to go high and then low with a sort of glitch filter
@@ -753,24 +770,35 @@ void OV767X::readFrameFlexIO(void* buffer)
     _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)buffer;
 
-#ifndef FLEXIO_USE_DMA
-    // read FlexIO by polling
-    uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
+    //----------------------------------------------------------------------
+    // Polling FlexIO version
+    //----------------------------------------------------------------------
+    if (!use_dma) {
+    digitalWrite(49, HIGH);
+      // read FlexIO by polling
+      uint32_t *p_end = (uint32_t *)buffer + (_width*_height/4)*_bytesPerPixel;
 
-    while (p < p_end) {
-        while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
-            // wait for FlexIO shifter data
-        }
-        *p++ = _pflexio->SHIFTBUF[_fshifter]; // should use DMA...
+      while (p < p_end) {
+          while ((_pflexio->SHIFTSTAT & _fshifter_mask) == 0) {
+              // wait for FlexIO shifter data
+          }
+          // Lets try to load in multiple shifters
+          for (uint8_t i = 0; i < CNT_SHIFTERS; i++) {
+            *p++ = _pflexio->SHIFTBUF[_fshifter+i]; // should use DMA...
+          }
+      }
+      digitalWrite(49, LOW);
+      return;
     }
-#else
-    // read FlexIO by DMA
+
+    //----------------------------------------------------------------------
+    // Use DMA FlexIO version
+    //----------------------------------------------------------------------
     digitalWrite(49, HIGH);
 
     // Lets try like other implementation.
     const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
     //uint32_t length_uint32 = frame_size_bytes / 4;
-#if 1
 
     _dmachannel.begin();
     _dmachannel.triggerAtHardwareEvent(_dma_source);
@@ -819,7 +847,7 @@ void OV767X::readFrameFlexIO(void* buffer)
     _dmachannel.TCD->CSR = 0u;
     _dmachannel.TCD->CSR |= DMA_TCD_CSR_DREQ;
     _dmachannel.TCD->BITER_ELINKNO = DMA_MAJOR_LOOP_SIZE;
-#else
+#elif  (CNT_SHIFTERS == 8)
     // see if I configure for all 8 buffers
     #define SHIFT_BUFFERS_SIZE 32u
     #define SHIFT_BUFFERS_MOD 5u
@@ -844,7 +872,7 @@ void OV767X::readFrameFlexIO(void* buffer)
     //                                        (~DMAMUX_CHCFG_SOURCE_MASK) | 
     //                                        DMAMUX_CHCFG_SOURCE(FLEXIO_CAMERA_DMA_MUX_SRC);
     /* Enable DMA channel. */
-    
+#if (CNT_SHIFTERS > 1)    
     _dmachannel.disableOnCompletion();
     _dmachannel.interruptAtCompletion();
     _dmachannel.clearComplete();
@@ -858,11 +886,11 @@ void OV767X::readFrameFlexIO(void* buffer)
     // do it over 2 
     // first pass split into two
     _dmasettings[0].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[0].destinationBuffer(p, length / 2);
+    _dmasettings[0].destinationBuffer(p, frame_size_bytes / 2);
     _dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
 
     _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
-    _dmasettings[1].destinationBuffer(&p[length_uint32 / 2], length / 2);
+    _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
     _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
     _dmasettings[1].disableOnCompletion();
     _dmasettings[1].interruptAtCompletion();
@@ -913,7 +941,6 @@ void OV767X::readFrameFlexIO(void* buffer)
     dumpDMA_TCD(&_dmachannel,"CM: ");
 //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
-#endif
 }
 
 

@@ -161,7 +161,7 @@ public:
 /********************************************************************************************/
 	//-------------------------------------------------------
 	//Generic Read Frame base on _hw_config
-	void readFrame(void* buffer);
+	void readFrame(void* buffer, bool use_dma=true);
 	
 	//normal Read mode
 	void readFrameGPIO(void* buffer);
@@ -170,7 +170,7 @@ public:
 	void stopReadContinuous();
 
 	//FlexIO is default mode for the camera
-	void readFrameFlexIO(void* buffer);
+	void readFrameFlexIO(void* buffer, bool use_dma=true);
 	bool startReadFlexIO(bool (*callback)(void *frame_buffer), void *fb1, void *fb2);
 	bool stopReadFlexIO();
 
