@@ -918,8 +918,8 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
             Serial.println("DMA error");
             if (_pflexio->SHIFTSTAT) Serial.printf(" SHIFTSTAT %08X\n", _pflexio->SHIFTSTAT);
             Serial.flush();
-            uint64_t i = *(uint64_t*)&_pflexio->SHIFTBUF[0];
-            Serial.printf("Result: %llx\n", i);
+            uint32_t i = _pflexio->SHIFTBUF[_fshifter];
+            Serial.printf("Result: %x\n", i);
 
 
             _dmachannel.clearError();
