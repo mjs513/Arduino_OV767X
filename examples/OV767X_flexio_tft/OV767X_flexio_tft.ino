@@ -207,8 +207,10 @@ void setup() {
   FRAME_HEIGHT = tft.height();
   FRAME_WIDTH =  tft.width();
 
-  Camera.setContrast(0x30);
-  Camera.setBrightness(0x80);
+  //Camera.setContrast(0x30);
+  //Camera.setBrightness(0x80);
+  Camera.autoExposure();
+  Camera.autoGain();
   //Camera.setDMACompleteISRPriority(192);  // lower than default
 
   showCommandList();
@@ -259,7 +261,6 @@ void frame_complete_cb() {
 #endif
 }
 
-
 void loop() {
   char ch;
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
@@ -274,7 +275,6 @@ void loop() {
 #endif
   if (Serial.available()) {
     ch = Serial.read();
-    bool use_dma = true;
     switch (ch) {
       case 'p':
         {
@@ -285,7 +285,6 @@ void loop() {
           uint32_t idx = 0;
           for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
             idx = i * 2;
-            pixel = color565(pixels[i], pixels[i], pixels[i]);
             sendImageBuf[idx + 1] = (pixel >> 0) & 0xFF;
             sendImageBuf[idx] = (pixel >> 8) & 0xFF;
           }
@@ -298,16 +297,13 @@ void loop() {
           break;
         }
 
-      case 'g':
-        use_dma = false;
-        // fall through
       case 'f':
         {
           Serial.println("Reading frame");
           Serial.printf("Buffer: %p halfway: %p end:%p\n", pixels, &pixels[Camera.width()*Camera.height() / 2], &pixels[Camera.width()*Camera.height()]);
           memset((uint8_t *)pixels, 0, sizeof(pixels));
           //digitalWriteFast(14, HIGH);
-          Camera.readFrame(pixels, use_dma);
+          Camera.readFrame(pixels);
           //digitalWriteFast(14, LOW);
           Serial.println("Finished reading frame");
           Serial.flush();
@@ -338,17 +334,19 @@ void loop() {
           Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), Camera.width(), Camera.height());
           //int camera_width = Camera.width();
           #if 1
-
+          //byte swap
           for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
 
           if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
             if ((Camera.width() != tft.width()) || (Camera.height() != tft.height())) tft.fillScreen(BLACK);
             tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), pixels);
           } else {
+            Serial.println("sub image");
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
                                   Camera.width(), Camera.height(), pixels);
           }
           #else
+          Serial.println("sub image1");
           tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, Camera.width(), Camera.height(), pixels);
           #endif
           ch = ' ';
@@ -406,13 +404,13 @@ void loop() {
         }
       case 0x30:
         {
-          #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
-          Serial.println(F("ACK CMD CAM start single shoot. END"));
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+          SerialUSB1.println(F("ACK CMD CAM start single shoot. END"));
           send_image(&SerialUSB1);
-          Serial.println(F("READY. END"));
-          #else
-          Serial.println("Command requires USB type of DUAL or TRIPLE Serial");
-          #endif
+          SerialUSB1.println(F("READY. END"));
+#else
+          Serial.println("*** Only works in USB Dual or Triple Serial Mode ***");
+#endif
           break;
         }
       case '?':
@@ -455,13 +453,10 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-
-//DMAMEM unsigned char image[324*244];
+#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
-  uint32_t imagesize;
-  imagesize = (FRAME_WIDTH * FRAME_HEIGHT * 2);
-  //Camera.verticalFlip();
-  //memset(frameBuffer, 0, sizeof(pixels));
+  Camera.verticalFlip();
+  memset((uint8_t *)pixels, 0, sizeof(pixels));
   Camera.readFrame(pixels);
 
   imgSerial->write(0xFF);
@@ -476,7 +471,7 @@ void send_image(Stream *imgSerial) {
     imgSerial->write((pixels[i] >> 8) & 0xFF);
     imgSerial->write( (pixels[i]) & 0xFF );
     delayMicroseconds(8);
-          }
+  }
   imgSerial->write(0xBB);
   imgSerial->write(0xCC);
 
@@ -484,18 +479,27 @@ void send_image(Stream *imgSerial) {
   delay(50);
 }
 
-#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
+//#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
-  uint32_t imagesize;
-  imagesize = (FRAME_WIDTH * FRAME_HEIGHT * 2);
-  SerialUSB1.write(sendImageBuf, imagesize);  // set Tools > USB Type to "Dual Serial"
+  //uint32_t imagesize;
+  //imagesize = (FRAME_WIDTH * FRAME_HEIGHT * 2);
+  //SerialUSB1.write(sendImageBuf, imagesize);  // set Tools > USB Type to "Dual Serial"
+
+  uint32_t idx = 0;
+  for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
+    idx = i * 2;
+    //uint16_t pixel = color565(pixels[i], pixels[i], pixels[i]);
+    SerialUSB1.write((pixels[i] >> 8) & 0xFF);
+    SerialUSB1.write( (pixels[i]) & 0xFF );
+    delayMicroseconds(8);
+  }
+  
 }
 #endif
 
 
 void showCommandList() {
   Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
-  Serial.println("Send the 'g' character to read a frame using FlexIO polled not DMA");
   Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
   Serial.println("Send the 'p' character to snapshot to PC on USB1");
