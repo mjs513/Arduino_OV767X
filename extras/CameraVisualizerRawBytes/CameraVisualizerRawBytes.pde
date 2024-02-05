@@ -52,7 +52,7 @@ void serialEvent(Serial myPort) {
 
   // access raw bytes via byte buffer
   ByteBuffer bb = ByteBuffer.wrap(frameBuffer);
-  bb.order(ByteOrder.BIG_ENDIAN);
+  bb.order(ByteOrder.LITTLE_ENDIAN);
 
   int i = 0;
 
