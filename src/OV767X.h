@@ -57,7 +57,7 @@ SDA             18      AD_B1_1 I2C
 #define OV7670_XCLK  7    //7       B1_01   PWM
 #define OV7670_HREF  46   //32      B0_12   FlexIO2:12
 #define OV7670_VSYNC 21   //33      EMC_07  GPIO
-#define OV7670_RST   255  // reset pin 
+#define OV7670_RST   17  // reset pin 
 
 #define OV7670_D0    40   //40      B0_04   FlexIO2:4
 #define OV7670_D1    41   //41      B0_05   FlexIO2:5
@@ -138,19 +138,13 @@ enum
   QQVGA = 4,  // 160x120
 };
 
-typedef enum {
-	HM01B0_TEENSY_MICROMOD_FLEXIO_8BIT = 0,
-	HM01B0_TEENSY_MICROMOD_FLEXIO_4BIT,
-} hw_config_t;
-
-
 class OV767X
 {
 public:
   OV767X();
   virtual ~OV767X();
 
-  int begin(int resolution, int format, int fps); // Supported FPS: 1, 5, 10, 15, 30
+  int begin(int resolution, int format, int fps, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void end();
 
   // must be called after Camera.begin():
@@ -165,7 +159,6 @@ public:
 	
 	//normal Read mode
 	void readFrameGPIO(void* buffer);
-	void readFrame4BitGPIO(void* buffer);
 	bool readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2);
 	void stopReadContinuous();
 
@@ -215,8 +208,6 @@ public:
   // must be called before Camera.begin()
   void setPins(int vsync, int href, int pclk, int xclk, const int dpins[8]);
 
-	hw_config_t _hw_config;
-
 private:
   void beginXClk();
   void endXClk();
@@ -227,6 +218,8 @@ private:
   int _pclkPin;
   int _xclkPin;
   int _dPins[8];
+
+  bool _use_gpio = false;
 
   int _width;
   int _height;

@@ -70,12 +70,13 @@ OV767X::~OV767X()
   }
 }
 
-int OV767X::begin(int resolution, int format, int fps)
+int OV767X::begin(int resolution, int format, int fps, bool use_gpio)
 {
     
+    
+  _use_gpio = use_gpio;
   // BUGBUG::: see where frame is
   pinMode(49, OUTPUT);
-    _hw_config = HM01B0_TEENSY_MICROMOD_FLEXIO_8BIT;
     
   Serial.println("OV767X::begin");
   switch (resolution) {
@@ -154,7 +155,17 @@ int OV767X::begin(int resolution, int format, int fps)
   _pclkMask = digitalPinToBitMask(_pclkPin);
 
   beginXClk();
-
+  
+  if(OV7670_RST != 0xFF){
+    pinMode(OV7670_RST, OUTPUT);
+    digitalWriteFast(OV7670_RST, LOW);      /* Reset */
+    for(volatile uint32_t i=0; i<100000; i++)
+    {}
+    digitalWriteFast(OV7670_RST, HIGH);     /* Normal mode. */
+    for(volatile uint32_t i=0; i<100000; i++)
+    {}
+  }
+  
   Wire.begin();
 
   delay(1000);
@@ -183,9 +194,14 @@ int OV767X::begin(int resolution, int format, int fps)
   tpf.denominator = fps;
   
 //flexIO/DMA
-	flexio_configure();
-	setVSyncISRPriority(102);
-	setDMACompleteISRPriority(192);
+    if(!_use_gpio) {
+        flexio_configure();
+        setVSyncISRPriority(102);
+        setDMACompleteISRPriority(192);
+    } else {
+        setVSyncISRPriority(102);
+        setDMACompleteISRPriority(192);
+    }
 
   ov7675_set_framerate(_ov7670, &tpf);
 
@@ -343,13 +359,15 @@ void OV767X::endXClk()
 
 #define FLEXIO_USE_DMA
 void OV767X::readFrame(void* buffer, bool use_dma){
-	readFrameFlexIO(buffer, use_dma);
-	
+    if(!_use_gpio) {
+        readFrameFlexIO(buffer, use_dma);
+    } else {
+        readFrameGPIO(buffer);
+    }
 }
 
 
 bool OV767X::readContinuous(bool(*callback)(void *frame_buffer), void *fb1, void *fb2) {
-	//set_mode(HIMAX_MODE_STREAMING_NFRAMES, 1);
 
 	return startReadFlexIO(callback, fb1, fb2);
 
@@ -405,59 +423,6 @@ void OV767X::readFrameGPIO(void* buffer)
 }
 
 
-void OV767X::readFrame4BitGPIO(void* buffer)
-{
-
-  uint8_t* b = (uint8_t*)buffer;
-//  bool _grayscale;  // ????  member variable ?????????????
-  uint8_t in0 = 0;
-  
-  int bytesPerRow = _width * _bytesPerPixel;
-
-
-  // Falling edge indicates start of frame
-  //pinMode(PCLK_PIN, INPUT); // make sure back to input pin...
-  // lets add our own glitch filter.  Say it must be hig for at least 100us
-  elapsedMicros emHigh;
-  do {
-    while ((*_vsyncPort & _vsyncMask) == 0); // wait for HIGH
-    emHigh = 0;
-    while ((*_vsyncPort & _vsyncMask) != 0); // wait for LOW
-  } while (emHigh < 2);
-
-  for (int i = 0; i < _height; i++) {
-    // rising edge indicates start of line
-    while ((*_hrefPort & _hrefMask) == 0); // wait for HIGH
-    while ((*_pclkPort & _pclkMask) != 0); // wait for LOW
-    noInterrupts();
-
-    for (int j = 0; j < bytesPerRow; j++) {
-      // rising edges clock each data byte
-      while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
-
-      //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint8_t in =  (GPIO7_PSR >> 4); // read all bits in parallel
-	  //uint32_t in = mmBus; 
-	  in &= 0x0F;
-	  
-	  if((j + 1) % 2) {
-		  in = (in0 << 4) | (in);
-		  if (!(j & 1) || !_grayscale) {
-			*b++ = in;
-		  }
-	  } else {
-		  in0 = in;
-	  }
-	  
-      while (((*_pclkPort & _pclkMask) != 0) && ((*_hrefPort & _hrefMask) != 0)) ; // wait for LOW bail if _href is lost
-    }
-
-    while ((*_hrefPort & _hrefMask) != 0) ;  // wait for LOW
-    interrupts();
-  }
-
-}
-
 
 bool OV767X::flexio_configure()
 {
@@ -468,7 +433,7 @@ bool OV767X::flexio_configure()
     uint8_t tpclk_pin; 
     _pflex = FlexIOHandler::mapIOPinToFlexIOHandler(_pclkPin, tpclk_pin);
     if (!_pflex) {
-        Serial.printf("HM01B0 PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
+        Serial.printf("OV767X PCLK(%u) is not a valid Flex IO pin\n", _pclkPin);
         return false;
     }
     _pflexio = &(_pflex->port());
@@ -482,14 +447,14 @@ bool OV767X::flexio_configure()
 
     // make sure the minimum here is valid: 
     if ((thsync_pin == 0xff) || (tg0 == 0xff) || (tg1 == 0xff) || (tg2 == 0xff) || (tg3 == 0xff)) {
-        Serial.printf("HM01B0 Some pins did not map to valid Flex IO pin\n");
+        Serial.printf("OV767X Some pins did not map to valid Flex IO pin\n");
         Serial.printf("    HSYNC(%u %u) G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             _hrefPin, thsync_pin, _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         return false;
     } 
     // Verify that the G numbers are consecutive... Should use arrays!
     if ((tg1 != (tg0+1)) || (tg2 != (tg0+2)) || (tg3 != (tg0+3))) {
-        Serial.printf("HM01B0 Flex IO pins G0-G3 are not consective\n");
+        Serial.printf("OV767X Flex IO pins G0-G3 are not consective\n");
         Serial.printf("    G0(%u %u) G1(%u %u) G2(%u %u) G3(%u %u)", 
             _dPins[0], tg0, _dPins[1], tg1, _dPins[2], tg2, _dPins[3], tg3 );
         return false;
@@ -500,16 +465,14 @@ bool OV767X::flexio_configure()
         uint8_t tg6 = _pflex->mapIOPinToFlexPin(_dPins[6]);
         uint8_t tg7 = _pflex->mapIOPinToFlexPin(_dPins[7]);
         if ((tg4 != (tg0+4)) || (tg5 != (tg0+5)) || (tg6 != (tg0+6)) || (tg7 != (tg0+7))) {
-            Serial.printf("HM01B0 Flex IO pins G4-G7 are not consective with G0-3\n");
+            Serial.printf("OV767X Flex IO pins G4-G7 are not consective with G0-3\n");
             Serial.printf("    G0(%u %u) G4(%u %u) G5(%u %u) G6(%u %u) G7(%u %u)", 
                 _dPins[0], tg0, _dPins[4], tg4, _dPins[5], tg5, _dPins[6], tg6, _dPins[7], tg7 );
             return false;
         }
-        _hw_config = HM01B0_TEENSY_MICROMOD_FLEXIO_8BIT;
         Serial.println("Custom - Flexio is 8 bit mode");
     } else {
       // only 8 bit mode supported
-      // _hw_config = HM01B0_TEENSY_MICROMOD_FLEXIO_4BIT;
       Serial.println("Custom - Flexio 4 bit mode not supported");
       return false;
     }
@@ -518,7 +481,7 @@ bool OV767X::flexio_configure()
     if (_pflex->claimShifter(3)) _fshifter = 3;
     else if (_pflex->claimShifter(7)) _fshifter = 7;
     else {
-      Serial.printf("HM01B0 Flex IO: Could not claim Shifter 3 or 7\n");
+      Serial.printf("OV767X Flex IO: Could not claim Shifter 3 or 7\n");
       return false;
     }
     _fshifter_mask = 1 << _fshifter;   // 4 channels.
@@ -538,7 +501,7 @@ bool OV767X::flexio_configure()
 
       for (_fshifter = 4; _fshifter < (4 + CNT_SHIFTERS); _fshifter++) {
         if (!_pflex->claimShifter(_fshifter)) {
-          Serial.printf("HM01B0 Flex IO: Could not claim Shifter %u\n", _fshifter);
+          Serial.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
           while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
           return false;
         }
@@ -556,7 +519,7 @@ bool OV767X::flexio_configure()
     // all 8 shifters.
     for (_fshifter = 0; _fshifter < 8; _fshifter++) {
       if (!_pflex->claimShifter(_fshifter)) {
-        Serial.printf("HM01B0 Flex IO: Could not claim Shifter %u\n", _fshifter);
+        Serial.printf("OV767X Flex IO: Could not claim Shifter %u\n", _fshifter);
         while (_fshifter > 4) _pflex->freeShifter(--_fshifter);  // release any we grabbed
         return false;
       }
@@ -569,7 +532,7 @@ bool OV767X::flexio_configure()
     // Now request one timer
     uint8_t _ftimer = _pflex->requestTimers(); // request 1 timer. 
     if (_ftimer == 0xff) {
-        Serial.printf("HM01B0 Flex IO: failed to request timer\n");
+        Serial.printf("OV767X Flex IO: failed to request timer\n");
         return false;
     }
 
