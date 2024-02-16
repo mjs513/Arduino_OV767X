@@ -70,7 +70,7 @@ OV767X::~OV767X()
   }
 }
 
-int OV767X::begin(int resolution, int format, int fps, bool use_gpio)
+int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool use_gpio)
 {
     
     
@@ -137,7 +137,7 @@ int OV767X::begin(int resolution, int format, int fps, bool use_gpio)
   pinMode(_vsyncPin, INPUT);
   pinMode(_hrefPin, INPUT);
   pinMode(_pclkPin, INPUT_PULLDOWN);
-//  pinMode(_xclkPin, OUTPUT);
+  pinMode(_xclkPin, OUTPUT);
 #ifdef DEBUG_CAMERA
   Serial.printf("  VS=%d, HR=%d, PC=%d XC=%d\n", _vsyncPin, _hrefPin, _pclkPin, _xclkPin);
 #endif
@@ -178,7 +178,7 @@ int OV767X::begin(int resolution, int format, int fps, bool use_gpio)
   }
 
   Serial.printf("Calling ov7670_configure\n");
-  ov7670_configure(_ov7670, 0 /*OV7670 = 0, OV7675 = 1*/, format, resolution, 16 /* MHz */,
+  ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, format, resolution, 16 /* MHz */,
                    0 /*pll bypass*/, 1 /* pclk_hb_disable */);
 
   if (ov7670_s_power(_ov7670, 1)) {
@@ -234,12 +234,20 @@ int OV767X::height() const
 
 int OV767X::bitsPerPixel() const
 {
-  return _bytesPerPixel * 8;
+  if (_grayscale) {
+    return 8;
+  } else {
+    return _bytesPerPixel * 8;
+  }
 }
 
 int OV767X::bytesPerPixel() const
 {
-  return _bytesPerPixel;
+  if (_grayscale) {
+    return 1;
+  } else {
+    return _bytesPerPixel;
+  }
 }
 
 
@@ -331,7 +339,7 @@ void OV767X::beginXClk()
 {
   // Generates 8 MHz signal using PWM... Will speed up.
 #if defined(__IMXRT1062__)  // Teensy 4.x
-  analogWriteFrequency(_xclkPin, 16000000);
+  analogWriteFrequency(_xclkPin, 14000000);
   analogWrite(_xclkPin, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer
 
 #else
@@ -407,7 +415,8 @@ void OV767X::readFrameGPIO(void* buffer)
       while ((*_pclkPort & _pclkMask) == 0); // wait for HIGH
 
       //uint32_t in = ((_frame_buffer_pointer)? GPIO1_DR : GPIO6_DR) >> 18; // read all bits in parallel
-      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel
+      uint32_t in =  (GPIO7_PSR >> 4); // read all bits in parallel  
+
 	  //uint32_t in = mmBus;
 
       if (!(j & 1) || !_grayscale) {
@@ -726,7 +735,7 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
       while ((*_vsyncPort & _vsyncMask) == 0);
       emGlitch = 0;
       while ((*_vsyncPort & _vsyncMask) != 0);
-      if (emGlitch > 500) break;
+      if (emGlitch > 5) break;
     }
 
     _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status

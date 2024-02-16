@@ -55,8 +55,8 @@ SDA             18      AD_B1_1 I2C
 
 #define OV7670_PLK   8    //8       B1_00   FlexIO2:16
 #define OV7670_XCLK  7    //7       B1_01   PWM
-#define OV7670_HREF  46   //32      B0_12   FlexIO2:12
-#define OV7670_VSYNC 21   //33      EMC_07  GPIO
+#define OV7670_HREF  32   //32      B0_12   FlexIO2:12, pin 46 on sdram board
+#define OV7670_VSYNC 33   //33      EMC_07  GPIO, 21 pon sdram board
 #define OV7670_RST   17  // reset pin 
 
 #define OV7670_D0    40   //40      B0_04   FlexIO2:4
@@ -131,6 +131,12 @@ enum
 
 enum
 {
+  OV7670 = 0,
+  OV7675 = 1
+};
+
+enum
+{
   VGA = 0,  // 640x480
   CIF = 1,  // 352x240
   QVGA = 2, // 320x240
@@ -144,7 +150,7 @@ public:
   OV767X();
   virtual ~OV767X();
 
-  int begin(int resolution, int format, int fps, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
+  int begin(int resolution, int format, int fps,  int camera_name = OV7670, bool use_gpio = false); // Supported FPS: 1, 5, 10, 15, 30
   void end();
 
   // must be called after Camera.begin():

@@ -52,7 +52,7 @@ ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 #elif defined(USE_ILI9488)
 #include <ILI9488_t3.h>
 //uint16_t pixels[640 * 480] EXTMEM; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
-//uint16_t pixels[320 * 240]; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+EXTMEM uint16_t pixels[320 * 240]  __attribute__ ((aligned(32))); // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
@@ -68,13 +68,16 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 //RAFB frame_buffer[320 * 480] EXTMEM;
 #else
 #include <ILI9341_t3n.h>
-EXTMEM uint16_t pixels[320 * 240]  __attribute__ ((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+DMAMEM uint16_t pixels[320 * 240]  __attribute__ ((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
-#define TFT_CS 10  // AD_B0_02
-#define TFT_DC 25  // AD_B0_03
-#define TFT_RST 24
+
+#define TFT_DC  0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS  4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_RST 1  // "RX1" on left side of Sparkfun ML Carrier
+
+
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
 
@@ -89,9 +92,9 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 #endif
 
 uint16_t FRAME_WIDTH, FRAME_HEIGHT;
-uint16_t frameBuffer[(324) * 244];
+ uint16_t frameBuffer[(320) * 240];
 uint8_t sendImageBuf[(320) * 240 * 2];
-uint8_t frameBuffer2[(324) * 244] DMAMEM;
+uint8_t frameBuffer2[(320) * 240] DMAMEM;
 
 bool g_continuous_flex_mode = false;
 void *volatile g_new_flexio_data = nullptr;
@@ -163,7 +166,7 @@ void setup() {
 #if defined(USE_ST7789)
   tft.init(240, 320);  // Init ST7789 320x240
 #elif defined(USE_ILI9488)
-  tft.begin(16000000);
+  tft.begin(32000000);
   //RAFB *frame_buffer = (RAFB*)sdram_malloc(sizeof(RAFB) * tft.width() * tft.height() + 32);
   //Serial.printf("frame_buffer: %lx", (uint32_t)frame_buffer);
   //frame_buffer =   (RAFB*)(((uint32_t)frame_buffer + 32) & 0xffffffe0);
@@ -171,7 +174,7 @@ void setup() {
 
   //tft.setFrameBuffer(frameBuffer);
 #else
-  tft.begin();
+  tft.begin(18000000);
 #endif
   tft.setRotation(1);
   tft.fillScreen(RED);
@@ -189,7 +192,7 @@ void setup() {
   Serial.flush();
   Serial.println();
 
-  if (!Camera.begin(QVGA, RGB565, 5)) {
+  if (!Camera.begin(QVGA, RGB565, 5, OV7675)) {
     Serial.println("Failed to initialize camera!");
     while (1)
       ;
@@ -207,10 +210,10 @@ void setup() {
   FRAME_HEIGHT = tft.height();
   FRAME_WIDTH =  tft.width();
 
-  //Camera.setContrast(0x30);
-  //Camera.setBrightness(0x80);
+  Camera.setContrast(0x30);
+  Camera.setBrightness(0x80);
   Camera.autoExposure();
-  Camera.autoGain();
+  //Camera.autoGain();
   //Camera.setDMACompleteISRPriority(192);  // lower than default
 
   showCommandList();
@@ -279,15 +282,6 @@ void loop() {
       case 'p':
         {
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
-          uint16_t pixel;
-          memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-          Camera.readFrame(pixels);
-          uint32_t idx = 0;
-          for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
-            idx = i * 2;
-            sendImageBuf[idx + 1] = (pixel >> 0) & 0xFF;
-            sendImageBuf[idx] = (pixel >> 8) & 0xFF;
-          }
           send_raw();
           Serial.println("Image Sent!");
           ch = ' ';
@@ -375,7 +369,6 @@ void loop() {
         {
           if (!g_continuous_flex_mode) {
             if (Camera.readContinuous(&camera_flexio_callback_video, frameBuffer, frameBuffer2)) {
-
               Serial.println("Before Set frame complete CB");
               if (!tft.useFrameBuffer(true)) Serial.println("Failed call to useFrameBuffer");
               tft.setFrameCompleteCB(&frame_complete_cb, false);
@@ -455,7 +448,6 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
-  Camera.verticalFlip();
   memset((uint8_t *)pixels, 0, sizeof(pixels));
   Camera.readFrame(pixels);
 
@@ -467,7 +459,6 @@ void send_image(Stream *imgSerial) {
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
-    //uint16_t pixel = color565(pixels[i], pixels[i], pixels[i]);
     imgSerial->write((pixels[i] >> 8) & 0xFF);
     imgSerial->write( (pixels[i]) & 0xFF );
     delayMicroseconds(8);
@@ -481,17 +472,13 @@ void send_image(Stream *imgSerial) {
 
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
-  //uint32_t imagesize;
-  //imagesize = (FRAME_WIDTH * FRAME_HEIGHT * 2);
-  //SerialUSB1.write(sendImageBuf, imagesize);  // set Tools > USB Type to "Dual Serial"
-
+  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  Camera.readFrame(pixels);
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
-    //uint16_t pixel = color565(pixels[i], pixels[i], pixels[i]);
     SerialUSB1.write((pixels[i] >> 8) & 0xFF);
     SerialUSB1.write( (pixels[i]) & 0xFF );
-    delayMicroseconds(8);
   }
   
 }
