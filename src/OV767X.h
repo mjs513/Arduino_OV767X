@@ -187,7 +187,7 @@ public:
 	void captureFrameStatistics();
 	
 	void setVSyncISRPriority(uint8_t priority) {NVIC_SET_PRIORITY(IRQ_GPIO6789, priority); }
-	void setDMACompleteISRPriority(uint8_t priority) {NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, priority); }
+	void setDMACompleteISRPriority(uint8_t priority) {NVIC_SET_PRIORITY(_dmachannel.channel & 0xf, priority); }
     /********************************************************************************************/
 
   // TBD Allow user to set all of the buffers...
@@ -259,8 +259,6 @@ private:
 	// TBD Allow user to set all of the buffers...
 
 
-	DMAChannel dma_flexio;
-
 	// Added settings for configurable flexio
 	FlexIOHandler *_pflex;
     IMXRT_FLEXIO_t *_pflexio;
@@ -293,12 +291,14 @@ private:
 	volatile uint8_t _dma_state;
 	static void dmaInterrupt(); 
 	void processDMAInterrupt();
+#if 0
 	static void frameStartInterrupt();
 	void processFrameStartInterrupt();
+#endif	
 	static void dmaInterruptFlexIO();
 	void processDMAInterruptFlexIO();
-	static void frameStartInterruptFlexIO();
-	void processFrameStartInterruptFlexIO();
+//	static void frameStartInterruptFlexIO();
+//	void processFrameStartInterruptFlexIO();
 	static OV767X *active_dma_camera;
 
 

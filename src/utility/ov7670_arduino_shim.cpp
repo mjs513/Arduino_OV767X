@@ -229,8 +229,10 @@ static const OVREG_TO_NAME_t ov_reg_name_table[] =
 };
 #endif 
 
-  int arduino_i2c_read(unsigned short address, unsigned char reg, unsigned char *value)
-  {
+
+
+int arduino_i2c_read(unsigned short address, unsigned char reg, unsigned char *value)
+{
 #ifdef OV760_DEBUG
     Serial.printf("I2C Read: reg: 0x%02x", reg);
 
@@ -271,6 +273,14 @@ static const OVREG_TO_NAME_t ov_reg_name_table[] =
 
     return 0;
   }
+
+void arduino_i2c_printRegs(unsigned short address) {
+    Serial.println("\n*** OV767X registers ***");
+    unsigned char value;
+    for (uint16_t i=0; i < (sizeof(ov_reg_name_table)/sizeof(ov_reg_name_table[0])); i++) {
+        arduino_i2c_read(address, i, &value);
+    }
+}
 
 
   int arduino_i2c_write(unsigned short address, unsigned char reg, unsigned char value)

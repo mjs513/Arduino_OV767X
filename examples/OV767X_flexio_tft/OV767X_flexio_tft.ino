@@ -47,12 +47,12 @@ extern "C" {
 #define CENTER ST7789_t3::CENTER
 
 ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
- uint16_t pixels[320 * 240];  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+uint16_t pixels[320 * 240];  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 
 #elif defined(USE_ILI9488)
 #include <ILI9488_t3.h>
 //uint16_t pixels[640 * 480] EXTMEM; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
-EXTMEM uint16_t pixels[320 * 240]  __attribute__ ((aligned(32))); // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+EXTMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
@@ -68,13 +68,13 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 //RAFB frame_buffer[320 * 480] EXTMEM;
 #else
 #include <ILI9341_t3n.h>
-DMAMEM uint16_t pixels[320 * 240]  __attribute__ ((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+DMAMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
 
-#define TFT_DC  0   // "TX1" on left side of Sparkfun ML Carrier
-#define TFT_CS  4   // "CS" on left side of Sparkfun ML Carrier
+#define TFT_DC 0   // "TX1" on left side of Sparkfun ML Carrier
+#define TFT_CS 4   // "CS" on left side of Sparkfun ML Carrier
 #define TFT_RST 1  // "RX1" on left side of Sparkfun ML Carrier
 
 
@@ -91,10 +91,9 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 
 #endif
 
-uint16_t FRAME_WIDTH, FRAME_HEIGHT;
- uint16_t frameBuffer[(320) * 240];
-uint8_t sendImageBuf[(320) * 240 * 2];
-uint8_t frameBuffer2[(320) * 240] DMAMEM;
+DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
+DMAMEM uint16_t frameBuffer[(320) * 240] __attribute__((aligned(32)));
+DMAMEM uint16_t frameBuffer2[(320) * 240] __attribute__((aligned(32)));
 
 bool g_continuous_flex_mode = false;
 void *volatile g_new_flexio_data = nullptr;
@@ -107,7 +106,7 @@ bool g_continuous_mode = false;
 bool g_dma_mode = false;
 elapsedMillis g_emCycles;
 uint32_t g_count_frames_output = 0;
-const int pinCamReset = 30;
+const int pinCamReset = 17;
 
 
 #define MCP(m) (uint16_t)(((m & 0xF8) << 8) | ((m & 0xFC) << 3) | (m >> 3))
@@ -141,10 +140,15 @@ const char bmp_header[BMPIMAGEOFFSET] PROGMEM = {
   0x00, 0x00
 };
 
+extern "C" {
+  extern void ov7670_printRegs();
+}
+
 void setup() {
   while (!Serial && millis() < 4000)
     ;
   Serial.begin(9600);
+  Serial.println("\nOV767x_flexio_tft started");
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
   SerialUSB1.begin(115200);
 #endif
@@ -174,7 +178,9 @@ void setup() {
 
   //tft.setFrameBuffer(frameBuffer);
 #else
-  tft.begin(18000000);
+  Serial.printf("start ILI9341 - cs:%u dc: %u RST: %u\n", TFT_CS, TFT_DC, TFT_RST);
+
+  tft.begin();
 #endif
   tft.setRotation(1);
   tft.fillScreen(RED);
@@ -194,9 +200,14 @@ void setup() {
 
   if (!Camera.begin(QVGA, RGB565, 5, OV7675)) {
     Serial.println("Failed to initialize camera!");
-    while (1)
-      ;
+    pinMode(13, OUTPUT);
+    while (1) {
+      digitalToggleFast(13);
+      delay(500);
+    }
   }
+
+  ov7670_printRegs();
 
   Serial.println("Camera settings:");
   Serial.print("\twidth = ");
@@ -208,7 +219,7 @@ void setup() {
   Serial.println();
   Serial.printf("TFT Width = %u Height = %u\n\n", tft.width(), tft.height());
   FRAME_HEIGHT = tft.height();
-  FRAME_WIDTH =  tft.width();
+  FRAME_WIDTH = tft.width();
 
   Camera.setContrast(0x30);
   Camera.setBrightness(0x80);
@@ -217,28 +228,41 @@ void setup() {
   //Camera.setDMACompleteISRPriority(192);  // lower than default
 
   showCommandList();
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
 }
 
 
 bool camera_flexio_callback(void *pfb) {
   //Serial.println("Flexio callback");
-  g_new_flexio_data = pfb;
+  //  digitalToggleFast(2);
+  if (pfb == frameBuffer) {
+    g_new_flexio_data = pfb;
+  }
   return true;
 }
 
 // Quick and Dirty
 #define UPDATE_ON_CAMERA_FRAMES
 
-uint8_t *pfb_last_frame_returned = nullptr;
+inline uint16_t HTONS(uint16_t x) {
+  return ((x >> 8) & 0x00FF) | ((x << 8) & 0xFF00);
+}
+
+volatile uint16_t *pfb_last_frame_returned = nullptr;
 
 bool camera_flexio_callback_video(void *pfb) {
-  pfb_last_frame_returned = (uint8_t *)pfb;
+  pfb_last_frame_returned = (uint16_t *)pfb;
 #ifdef UPDATE_ON_CAMERA_FRAMES
   tft.setOrigin(-2, -2);
   if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
-    arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
+    arm_dcache_delete((void *)pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT * 2);
+  int numPixels = Camera.width() * Camera.height();
 
-  tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)pfb_last_frame_returned, mono_palette);
+  for (int i = 0; i < numPixels; i++) pfb_last_frame_returned[i] = HTONS(pfb_last_frame_returned[i]);
+
+  tft.writeRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint16_t *)pfb_last_frame_returned);
+  //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)pfb_last_frame_returned, mono_palette);
   pfb_last_frame_returned = nullptr;
   tft.setOrigin(0, 0);
   uint16_t *pframebuf = tft.getFrameBuffer();
@@ -252,13 +276,11 @@ void frame_complete_cb() {
   //Serial.print("@");
 #ifndef UPDATE_ON_CAMERA_FRAMES
   if (!pfb_last_frame_returned) return;
-  tft.setOrigin(-2, -2);
   if ((uint32_t)pfb_last_frame_returned >= 0x20200000u)
-    arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT);
-
-  tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)pfb_last_frame_returned, mono_palette);
+    arm_dcache_delete(pfb_last_frame_returned, FRAME_WIDTH * FRAME_HEIGHT * 2);
+  tft.writeSubImageRectBytesReversed(0, 0, FRAME_WIDTH, FRAME_HEIGHT, 0, 0, FRAME_WIDTH, FRAME_HEIGHT, pfb_last_frame_returned);
+  //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)pfb_last_frame_returned, mono_palette);
   pfb_last_frame_returned = nullptr;
-  tft.setOrigin(0, 0);
   uint16_t *pfb = tft.getFrameBuffer();
   if ((uint32_t)pfb >= 0x20200000u) arm_dcache_flush(pfb, FRAME_WIDTH * FRAME_HEIGHT);
 #endif
@@ -294,7 +316,7 @@ void loop() {
       case 'f':
         {
           Serial.println("Reading frame");
-          Serial.printf("Buffer: %p halfway: %p end:%p\n", pixels, &pixels[Camera.width()*Camera.height() / 2], &pixels[Camera.width()*Camera.height()]);
+          Serial.printf("Buffer: %p halfway: %p end:%p\n", pixels, &pixels[Camera.width() * Camera.height() / 2], &pixels[Camera.width() * Camera.height()]);
           memset((uint8_t *)pixels, 0, sizeof(pixels));
           //digitalWriteFast(14, HIGH);
           Camera.readFrame(pixels);
@@ -326,10 +348,11 @@ void loop() {
 
           int numPixels = Camera.width() * Camera.height();
           Serial.printf("TFT(%u, %u) Camera(%u, %u)\n", tft.width(), tft.height(), Camera.width(), Camera.height());
-          //int camera_width = Camera.width();
-          #if 1
+//int camera_width = Camera.width();
+#if 1
           //byte swap
-          for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
+          //for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
+      for (int i = 0; i < numPixels; i++) pixels[i] = HTONS(pixels[i]);
 
           if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
             if ((Camera.width() != tft.width()) || (Camera.height() != tft.height())) tft.fillScreen(BLACK);
@@ -339,10 +362,10 @@ void loop() {
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
                                   Camera.width(), Camera.height(), pixels);
           }
-          #else
+#else
           Serial.println("sub image1");
           tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, Camera.width(), Camera.height(), pixels);
-          #endif
+#endif
           ch = ' ';
           g_continuous_flex_mode = false;
           break;
@@ -423,10 +446,16 @@ void loop() {
   if (g_continuous_flex_mode) {
     if (g_new_flexio_data) {
       //Serial.println("new FlexIO data");
-      tft.setOrigin(-2, -2);
-      tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)g_new_flexio_data, mono_palette);
+      digitalWriteFast(3, HIGH);
+      int numPixels = Camera.width() * Camera.height();
+      uint16_t *pb = (uint16_t *)g_new_flexio_data;
+      for (int i = 0; i < numPixels; i++) pb[i] = HTONS(pb[i]);
+      tft.writeRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint16_t *)g_new_flexio_data);
+      //tft.writeRect8BPP(0, 0, FRAME_WIDTH, FRAME_HEIGHT, (uint8_t *)g_new_flexio_data, mono_palette);
       tft.setOrigin(0, 0);
       tft.updateScreenAsync();
+      digitalWriteFast(3, LOW);
+
       g_new_flexio_data = nullptr;
       g_flexio_redraw_count++;
       if (g_flexio_runtime > 10000) {
@@ -460,7 +489,7 @@ void send_image(Stream *imgSerial) {
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
     imgSerial->write((pixels[i] >> 8) & 0xFF);
-    imgSerial->write( (pixels[i]) & 0xFF );
+    imgSerial->write((pixels[i]) & 0xFF);
     delayMicroseconds(8);
   }
   imgSerial->write(0xBB);
@@ -478,9 +507,8 @@ void send_raw() {
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
     SerialUSB1.write((pixels[i] >> 8) & 0xFF);
-    SerialUSB1.write( (pixels[i]) & 0xFF );
+    SerialUSB1.write((pixels[i]) & 0xFF);
   }
-  
 }
 #endif
 

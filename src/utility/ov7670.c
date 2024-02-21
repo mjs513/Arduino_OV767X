@@ -529,6 +529,13 @@ static int ov7670_read(struct v4l2_subdev *sd, unsigned char reg,
 	return arduino_i2c_read(OV7670_I2C_ADDR >> 1, reg, value);
 }
 
+extern void arduino_i2c_printRegs(unsigned short address);
+
+void ov7670_printRegs()
+{
+	arduino_i2c_printRegs(OV7670_I2C_ADDR >> 1);
+}
+
 static int ov7670_write(struct v4l2_subdev *sd, unsigned char reg,
 		unsigned char value)
 {
@@ -832,6 +839,52 @@ static struct regval_list ov7670_qqvga_regs[] = {
 
 };
 
+
+static struct regval_list ov7675_qvga_regs[] = {
+    { 0xFF,         0xFF }, // disable this list for now 
+    { REG_COM3,         COM3_DCWEN },
+    { REG_COM14,        0x11 },      // Divide by 2
+    { 0x72,         0x22 },      // This has no effect on OV7675
+    { 0x73,         0xf2 },      // This has no effect on OV7675
+    { REG_HSTART,       0x15 },
+    { REG_HSTOP,        0x03 },
+    { REG_HREF,         0xC0 },
+    { REG_VSTART,       0x03 },
+    { REG_VSTOP,        0x7B },
+    { REG_VREF,         0xF0 },
+
+    // HACK TEST apply differences from GIGA
+	{ 0x00,	0x2},	// GAIN
+	{ 0x01,	0x50},	// BLUE
+	{ 0x02,	0x4C},	// RED
+	{ 0x03,	0xA},	// VREF
+	{ 0x06,	0x1},	// GbAVE
+	{ 0x10,	0x26},	// AECH
+	{ 0x11,	0x40},	// CLKRC
+	{ 0x12,	0x4},	// COM7
+	{ 0x14,	0x6A},	// COM9
+	{ 0x15,	0x2},	// COM10
+	{ 0x18,	0x4},	// HSTOP
+	{ 0x19,	0x2},	// VSTART
+	{ 0x1e,	0x4},	// MVFP
+	{ 0x2f,	0x2},	// YAVE
+	{ 0x32,	0xA4},	// HREF
+	{ 0x33,	0xA4},	// CHLF
+	{ 0x34,	0xA4},	// ARBLM
+	{ 0x35,	0xA4},	//*RSVD*
+	{ 0x3d,	0x40},	// COM13
+	{ 0x3e,	0x19},	// COM14
+	{ 0x40,	0xD0},	// COM15
+	{ 0x56,	0x40},	// CONTRAS
+	{ 0x6a,	0x4A},	// GGAIN
+	{ 0x6b,	0x0},	// DBLV
+	{ 0x72,	0x11},	// SCALING_DCWCTR
+	{ 0x73,	0xF1},	// SCALING_PCLK_DIV
+
+    { 0xFF,         0xFF },
+};
+
+
 /*
  * To center the QQVGA window on the OV7675 the REG_VSTART value was increased
  */
@@ -945,7 +998,7 @@ static struct ov7670_win_size ov7675_win_sizes[] = {
 		.hstop		=  24,
 		.vstart		=  12,
 		.vstop		= 492,
-		.regs		= NULL,
+		.regs		= ov7675_qvga_regs,
 	},
 	/* QCIF */
 	{
@@ -1941,7 +1994,7 @@ static int ov7670_s_power(struct v4l2_subdev *sd, int on)
 		ov7670_apply_fmt(sd);
 		ov7675_apply_framerate(sd);
 #ifndef ARDUINO
-		v4l2_ctrl_handler_setup(&info->hdl);
+		v4l2_ctrlh_andler_setup(&info->hdl);
 #endif
 	} else {
 		ov7670_power_off (sd);
