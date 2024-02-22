@@ -184,7 +184,11 @@ int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool us
   if(camera_name == OV7670) {
       _xclk_freq = 16;
   } else {
-      _xclk_freq =14;
+      if(fps <= 10){
+       _xclk_freq = 14;
+      } else {
+      _xclk_freq = 16;
+      }
   }
   Serial.printf("Calling ov7670_configure\n");
   ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, format, resolution, _xclk_freq /* MHz */,
