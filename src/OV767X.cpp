@@ -4,6 +4,7 @@
  * Copyright (c) 2020 Arduino SA. All rights reserved.
  */
 //#define DEBUG_CAMERA
+#define USE_VSYNC_PIN_INT
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -60,7 +61,7 @@ OV767X::OV767X() :
   _hue(0),
   _frame_buffer_pointer(NULL)
 {
-  setPins(OV7670_VSYNC, OV7670_HREF, OV7670_PLK, OV7670_XCLK, OV760_D);
+  setPins(OV7670_VSYNC, OV7670_HREF, OV7670_PLK, OV7670_XCLK, OV7670_RST, OV760_D);
 }
 
 OV767X::~OV767X()
@@ -134,7 +135,10 @@ int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool us
     return 0;
   }
 
-  pinMode(_vsyncPin, INPUT);
+  pinMode(_vsyncPin, INPUT_PULLDOWN);
+//  const struct digital_pin_bitband_and_config_table_struct *p;
+//  p = digital_pin_to_info_PGM + _vsyncPin;
+//  *(p->pad) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_HYS;  // See if I turn on HYS...
   pinMode(_hrefPin, INPUT);
   pinMode(_pclkPin, INPUT_PULLDOWN);
   pinMode(_xclkPin, OUTPUT);
@@ -156,12 +160,12 @@ int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool us
 
   beginXClk();
   
-  if(OV7670_RST != 0xFF){
-    pinMode(OV7670_RST, OUTPUT);
-    digitalWriteFast(OV7670_RST, LOW);      /* Reset */
+  if(_rst != 0xFF){
+    pinMode(_rst, OUTPUT);
+    digitalWriteFast(_rst, LOW);      /* Reset */
     for(volatile uint32_t i=0; i<100000; i++)
     {}
-    digitalWriteFast(OV7670_RST, HIGH);     /* Normal mode. */
+    digitalWriteFast(_rst, HIGH);     /* Normal mode. */
     for(volatile uint32_t i=0; i<100000; i++)
     {}
   }
@@ -177,8 +181,13 @@ int OV767X::begin(int resolution, int format, int fps,  int camera_name, bool us
     return 0;
   }
 
+  if(camera_name == OV7670) {
+      _xclk_freq = 16;
+  } else {
+      _xclk_freq =14;
+  }
   Serial.printf("Calling ov7670_configure\n");
-  ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, format, resolution, 14 /* MHz */,
+  ov7670_configure(_ov7670, camera_name /*OV7670 = 0, OV7675 = 1*/, format, resolution, _xclk_freq /* MHz */,
                    0 /*pll bypass*/, 1 /* pclk_hb_disable */);
 
   if (ov7670_s_power(_ov7670, 1)) {
@@ -325,12 +334,13 @@ void OV767X::autoExposure()
   ov7670_s_autoexp(_ov7670, 0 /* V4L2_EXPOSURE_AUTO */);
 }
 
-void OV767X::setPins(int vsync, int href, int pclk, int xclk, const int dpins[8])
+void OV767X::setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8])
 {
   _vsyncPin = vsync;
   _hrefPin = href;
   _pclkPin = pclk;
   _xclkPin = xclk;
+  _rst = rst;
 
   memcpy(_dPins, dpins, sizeof(_dPins));
 }
@@ -339,7 +349,7 @@ void OV767X::beginXClk()
 {
   // Generates 8 MHz signal using PWM... Will speed up.
 #if defined(__IMXRT1062__)  // Teensy 4.x
-  analogWriteFrequency(_xclkPin, 14000000);
+  analogWriteFrequency(_xclkPin, _xclk_freq * 1000000);
   analogWrite(_xclkPin, 127); delay(100); // 9mhz works, but try to reduce to debug timings with logic analyzer
 
 #else
@@ -870,9 +880,11 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
     _dmachannel = _dmasettings[0];
 
     _dmachannel.clearComplete();
+#ifdef DEBUG_FLEXIO
     dumpDMA_TCD(&_dmachannel," CH: ");
     dumpDMA_TCD(&_dmasettings[0], " 0: ");
     dumpDMA_TCD(&_dmasettings[1], " 1: ");
+#endif
 #endif
 
 
@@ -880,8 +892,10 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
     _pflexio->SHIFTSDEN = _fshifter_mask;
     _dmachannel.enable();
     
+#ifdef DEBUG_FLEXIO
     Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
-
+#endif
+    
     elapsedMillis timeout = 0;
     //while (!_dmachannel.complete()) {
     while (_dma_state == DMA_STATE_ONE_FRAME) {
@@ -910,7 +924,9 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
     }
     digitalWriteFast(2, LOW);
     arm_dcache_delete(buffer, frame_size_bytes);
+#ifdef DEBUG_FLEXIO
     dumpDMA_TCD(&_dmachannel,"CM: ");
+#endif
 //    dumpDMA_TCD(&_dmasettings[0], " 0: ");
 //    dumpDMA_TCD(&_dmasettings[1], " 1: ");
 }
@@ -928,6 +944,8 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     active_dma_camera = this;
 
     //flexio_configure(); // one-time hardware setup
+    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
+    _pflexio->SHIFTERR = _fshifter_mask;
     uint32_t *p = (uint32_t *)fb1;
 
     //----------------------------------------------------------------------
@@ -954,7 +972,6 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     _dmasettings[1].source(_pflexio->SHIFTBUF[_fshifter]);
     _dmasettings[1].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
     _dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
-    //_dmasettings[1].disableOnCompletion();
     _dmasettings[1].interruptAtCompletion();
 
     // lets preset up the dmasettings for second buffer
@@ -966,16 +983,23 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     _dmasettings[3].source(_pflexio->SHIFTBUF[_fshifter]);
     _dmasettings[3].destinationBuffer(&p[frame_size_bytes / 8], frame_size_bytes / 2);
     _dmasettings[3].replaceSettingsOnCompletion(_dmasettings[0]);
-    //_dmasettings[1].disableOnCompletion();
     _dmasettings[3].interruptAtCompletion();
 
 
+    #ifdef USE_VSYNC_PIN_INT
+    // disable when we have received a full frame. 
+    _dmasettings[1].disableOnCompletion();
+    _dmasettings[3].disableOnCompletion();
+    #else
     _dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
     _dmasettings[3].TCD->CSR &= ~(DMA_TCD_CSR_DREQ); // Don't disable on this one
+    #endif
 
     _dmachannel = _dmasettings[0];
 
     _dmachannel.clearComplete();
+#ifdef DEBUG_FLEXIO
+
     dumpDMA_TCD(&_dmachannel," CH: ");
     dumpDMA_TCD(&_dmasettings[0], " 0: ");
     dumpDMA_TCD(&_dmasettings[1], " 1: ");
@@ -983,6 +1007,26 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
     dumpDMA_TCD(&_dmasettings[3], " 3: ");
     Serial.printf("Flexio DMA: length: %d\n", frame_size_bytes);
 
+#endif
+
+    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
+    _pflexio->SHIFTERR = _fshifter_mask;
+
+
+    _dma_last_completed_frame = nullptr;
+    _dma_frame_count = 0;
+
+    _dma_state = DMASTATE_RUNNING;
+
+#ifdef USE_VSYNC_PIN_INT
+    // Lets use interrupt on interrupt on VSYNC pin to start the capture of a frame
+    _dma_active = false;
+    _vsync_high_time = 0;
+    NVIC_SET_PRIORITY(IRQ_GPIO6789, 102);
+    //NVIC_SET_PRIORITY(dma_flexio.channel & 0xf, 102);
+    attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
+    _pflexio->SHIFTSDEN = _fshifter_mask;
+#else    
     // wait for VSYNC to go high and then low with a sort of glitch filter
     elapsedMillis emWaitSOF;
     elapsedMicros emGlitch;
@@ -997,17 +1041,9 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
       if (emGlitch > 2) break;
     }
 
-    _pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    _pflexio->SHIFTERR = _fshifter_mask;
-
-
-    _dma_last_completed_frame = nullptr;
-    _dma_frame_count = 0;
-
-    _dma_state = DMASTATE_RUNNING;
     _pflexio->SHIFTSDEN = _fshifter_mask;
     _dmachannel.enable();
-    
+#endif    
 
     return true;
 #else
@@ -1015,7 +1051,7 @@ bool OV767X::startReadFlexIO(bool(*callback)(void *frame_buffer), void *fb1, voi
 #endif
 }
 
-#if 0
+#ifdef USE_VSYNC_PIN_INT
 void OV767X::frameStartInterruptFlexIO()
 {
 	active_dma_camera->processFrameStartInterruptFlexIO();
@@ -1023,22 +1059,27 @@ void OV767X::frameStartInterruptFlexIO()
 
 void OV767X::processFrameStartInterruptFlexIO()
 {
-    if (!_dma_active) {
-    	_pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
-    	_pflexio->SHIFTERR = _fshifter_mask;
+  digitalWriteFast(5, HIGH);
+  //Serial.println("VSYNC");
+  // See if we read the state of it a few times if the pin stays high...
+  if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) 
+          && digitalReadFast(_vsyncPin) )  {
+    // stop this interrupt.
+    //digitalToggleFast(2);
+    digitalWriteFast(2, LOW);
+    digitalWriteFast(2, HIGH);
+    detachInterrupt(_vsyncPin);
 
-    	// TODO: could a prior status have a DMA request still be pending?
-    	void *dest = (_dma_frame_count & 1) ? _frame_buffer_2 : _frame_buffer_1;
-    	const uint32_t length = _width*_height;
-    	//_dmachannel.TCD->DADDR = dest;
-    	_dmachannel.destinationBuffer((uint32_t *)dest, length);
-    	_dmachannel.transferSize(4);
-    	_dmachannel.transferCount(length / 4);
-    	_dmachannel.enable();
-    	//Serial.println("VSYNC");
-          _dma_active = true;
-    }
+    // For this pass will leave in longer DMAChain with both buffers.
+  	_pflexio->SHIFTSTAT = _fshifter_mask; // clear any prior shift status
+  	_pflexio->SHIFTERR = _fshifter_mask;
+
+    _vsync_high_time = 0; // clear out the time.
+    _dmachannel.clearComplete();
+    _dmachannel.enable();
+  }
 	asm("DSB");
+  digitalWriteFast(5, LOW);
 }
 
 #endif
@@ -1053,7 +1094,8 @@ void OV767X::processDMAInterruptFlexIO()
 
   _dmachannel.clearInterrupt();
 //  digitalToggleFast(2);
-
+  digitalWriteFast(2, HIGH);
+  digitalWriteFast(2, LOW);
   if (_dma_state == DMA_STATE_ONE_FRAME) {
     _dma_state = DMA_STATE_STOPPED;
     asm("DSB");
@@ -1069,6 +1111,7 @@ void OV767X::processDMAInterruptFlexIO()
     return;
   }
 
+#if 0
   static uint8_t debug_print_count = 8;
   if (debug_print_count) {
     debug_print_count--;
@@ -1076,6 +1119,7 @@ void OV767X::processDMAInterruptFlexIO()
     dumpDMA_TCD(&_dmachannel," CH: ");
 
   }
+#endif  
 	_dmachannel.clearComplete();
   const uint32_t frame_size_bytes = _width*_height*_bytesPerPixel;
   _dma_last_completed_frame = (((uint32_t)_dmachannel.TCD->DADDR) == (uint32_t)_frame_buffer_1)? _frame_buffer_2 : _frame_buffer_1;
@@ -1083,16 +1127,33 @@ void OV767X::processDMAInterruptFlexIO()
 	arm_dcache_delete(_dma_last_completed_frame, frame_size_bytes);
 
 	if (_callback) (*_callback)(_dma_last_completed_frame); // TODO: use EventResponder
-  //  _dma_active = false;
+  _dma_active = false;
+  // start up interrupt to look for next start of interrupt.
+  _vsync_high_time = 0; // remember the time we were called
+
+  if (_dma_state == DMASTATE_RUNNING) attachInterrupt(_vsyncPin, &frameStartInterruptFlexIO, RISING);
+
 	asm("DSB");
 }
 
 
 bool OV767X::stopReadFlexIO()
 {
+  #ifdef USE_VSYNC_PIN_INT
+  // first disable the vsync interrupt
+  detachInterrupt(_vsyncPin);
+  if (!_dma_active) {
+    _dma_state = DMA_STATE_STOPPED;
+  } else {
+    cli();
+    if (_dma_state != DMA_STATE_STOPPED) _dma_state = DMASTATE_STOP_REQUESTED;
+    sei();
+  }
+  #else
   _dmasettings[1].disableOnCompletion();
   _dmasettings[3].disableOnCompletion();
   _dma_state = DMASTATE_STOP_REQUESTED;
+  #endif
 	return true;
 }
 

@@ -212,7 +212,7 @@ public:
   void showRegisters();
 
   // must be called before Camera.begin()
-  void setPins(int vsync, int href, int pclk, int xclk, const int dpins[8]);
+  void setPins(int vsync, int href, int pclk, int xclk, int rst, const int dpins[8]);
 
 private:
   void beginXClk();
@@ -223,7 +223,10 @@ private:
   int _hrefPin;
   int _pclkPin;
   int _xclkPin;
+  int _rst;
   int _dPins[8];
+  
+  int _xclk_freq = 14;
 
   bool _use_gpio = false;
 
@@ -286,7 +289,8 @@ private:
 	uint8_t *_frame_buffer_pointer;
 	uint8_t *_frame_row_buffer_pointer; // start of the row
 	uint8_t _dma_index;
-	bool 	_dma_active;
+	volatile bool	_dma_active;
+	volatile uint32_t _vsync_high_time = 0;
 	enum {DMASTATE_INITIAL=0, DMASTATE_RUNNING, DMASTATE_STOP_REQUESTED, DMA_STATE_STOPPED, DMA_STATE_ONE_FRAME};
 	volatile uint8_t _dma_state;
 	static void dmaInterrupt(); 
@@ -297,8 +301,8 @@ private:
 #endif	
 	static void dmaInterruptFlexIO();
 	void processDMAInterruptFlexIO();
-//	static void frameStartInterruptFlexIO();
-//	void processFrameStartInterruptFlexIO();
+	static void frameStartInterruptFlexIO();
+	void processFrameStartInterruptFlexIO();
 	static OV767X *active_dma_camera;
 
 
