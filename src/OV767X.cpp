@@ -922,7 +922,9 @@ void OV767X::readFrameFlexIO(void* buffer, bool use_dma)
             break;
         }
     }
-    digitalWriteFast(2, LOW);
+    #ifdef OV7670_USE_DEBUG_PINS
+        digitalWriteFast(2, LOW);
+    #endif
     arm_dcache_delete(buffer, frame_size_bytes);
 #ifdef DEBUG_FLEXIO
     dumpDMA_TCD(&_dmachannel,"CM: ");
@@ -1059,15 +1061,19 @@ void OV767X::frameStartInterruptFlexIO()
 
 void OV767X::processFrameStartInterruptFlexIO()
 {
+  #ifdef OV7670_USE_DEBUG_PINS
   digitalWriteFast(5, HIGH);
+  #endif
   //Serial.println("VSYNC");
   // See if we read the state of it a few times if the pin stays high...
   if (digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) && digitalReadFast(_vsyncPin) 
           && digitalReadFast(_vsyncPin) )  {
     // stop this interrupt.
+    #ifdef OV7670_USE_DEBUG_PINS
     //digitalToggleFast(2);
     digitalWriteFast(2, LOW);
     digitalWriteFast(2, HIGH);
+    #endif
     detachInterrupt(_vsyncPin);
 
     // For this pass will leave in longer DMAChain with both buffers.
@@ -1079,7 +1085,9 @@ void OV767X::processFrameStartInterruptFlexIO()
     _dmachannel.enable();
   }
 	asm("DSB");
+  #ifdef OV7670_USE_DEBUG_PINS
   digitalWriteFast(5, LOW);
+  #endif
 }
 
 #endif
@@ -1093,9 +1101,11 @@ void OV767X::processDMAInterruptFlexIO()
 {
 
   _dmachannel.clearInterrupt();
+  #ifdef OV7670_USE_DEBUG_PINS
 //  digitalToggleFast(2);
   digitalWriteFast(2, HIGH);
   digitalWriteFast(2, LOW);
+  #endif
   if (_dma_state == DMA_STATE_ONE_FRAME) {
     _dma_state = DMA_STATE_STOPPED;
     asm("DSB");
@@ -1306,7 +1316,9 @@ bool OV767X::stopReadFrameDMA()
 
   // hopefully it start here (fingers crossed)
   // for now will hang here to see if completes...
+  #ifdef OV7670_USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_2, HIGH);
+  #endif
   elapsedMillis em = 0;
   // tell the background stuff DMA stuff to exit.
   // Note: for now let it end on on, later could disable the DMA directly.
@@ -1317,8 +1329,9 @@ bool OV767X::stopReadFrameDMA()
     Serial.println("*** stopReadFrameDMA DMA did not exit correctly...");
     Serial.printf("  Bytes Left: %u frame buffer:%x Row:%u Col:%u\n", _bytes_left_dma, (uint32_t)_frame_buffer_pointer, _frame_row_index, _frame_col_index);
   }
+  #ifdef OV7670_USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
-
+  #endif
 #ifdef DEBUG_CAMERA
   dumpDMA_TCD(&_dmachannel, nullptr);
   dumpDMA_TCD(&_dmasettings[0], nullptr);
@@ -1375,8 +1388,10 @@ void OV767X::dmaInterrupt() {
 void OV767X::processDMAInterrupt() {
   _dmachannel.clearInterrupt(); // tell system we processed it.
   asm("DSB");
+  #ifdef OV7670_USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_3, HIGH);
-
+  #endif
+  
   if (_dma_state == DMA_STATE_STOPPED) {
     Serial.println("OV767X::dmaInterrupt called when DMA_STATE_STOPPED");
     return; //
@@ -1430,7 +1445,9 @@ void OV767X::processDMAInterrupt() {
 
   if ((_frame_row_index == _height) || (_bytes_left_dma == 0)) { // We finished a frame lets bail
     _dmachannel.disable();  // disable the DMA now...
+    #ifdef OV7670_USE_DEBUG_PINS
     //DebugDigitalWrite(OV7670_DEBUG_PIN_2, LOW);
+    #endif
 #ifdef DEBUG_CAMERA_VERBOSE
     Serial.println("EOF");
 #endif
@@ -1487,7 +1504,9 @@ void OV767X::processDMAInterrupt() {
     }
 
   }
+  #ifdef OV7670_USE_DEBUG_PINS
   //DebugDigitalWrite(OV7670_DEBUG_PIN_3, LOW);
+  #endif
 }
 
 typedef struct {
