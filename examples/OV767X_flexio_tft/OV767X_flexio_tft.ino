@@ -47,12 +47,12 @@ extern "C" {
 #define CENTER ST7789_t3::CENTER
 
 ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
-uint16_t pixels[320 * 240];  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+//uint16_t pixels[320 * 240];  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 
 #elif defined(USE_ILI9488)
 #include <ILI9488_t3.h>
 //uint16_t pixels[640 * 480] EXTMEM; // QCIF: 176x144 X 2 bytes per pixel (RGB565)
-EXTMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+//EXTMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
@@ -68,7 +68,7 @@ ILI9488_t3 tft = ILI9488_t3(TFT_CS, TFT_DC, TFT_RST);
 //RAFB frame_buffer[320 * 480] EXTMEM;
 #else
 #include <ILI9341_t3n.h>
-DMAMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
+//DMAMEM uint16_t pixels[320 * 240] __attribute__((aligned(32)));  // QCIF: 176x144 X 2 bytes per pixel (RGB565);  // QCIF: 176x144 X 2 bytes per pixel (RGB565)
 //#define TFT_CS   0  // AD_B0_02
 //#define TFT_DC   1  // AD_B0_03
 //#define TFT_RST 255
@@ -91,6 +91,8 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST);
 
 #endif
 
+// Warning switched use from pixels to frameBuffer.  Maybe need to
+// define them per display like pixels was ?
 DMAMEM uint16_t FRAME_WIDTH, FRAME_HEIGHT;
 DMAMEM uint16_t frameBuffer[(320) * 240] __attribute__((aligned(32)));
 DMAMEM uint16_t frameBuffer2[(320) * 240] __attribute__((aligned(32)));
@@ -295,16 +297,16 @@ void loop() {
       case 'f':
         {
           Serial.println("Reading frame");
-          Serial.printf("Buffer: %p halfway: %p end:%p\n", pixels, &pixels[Camera.width() * Camera.height() / 2], &pixels[Camera.width() * Camera.height()]);
-          memset((uint8_t *)pixels, 0, sizeof(pixels));
+          Serial.printf("Buffer: %p halfway: %p end:%p\n", frameBuffer, &frameBuffer[Camera.width() * Camera.height() / 2], &frameBuffer[Camera.width() * Camera.height()]);
+          memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
           //digitalWriteFast(14, HIGH);
-          Camera.readFrame(pixels);
+          Camera.readFrame(frameBuffer);
           //digitalWriteFast(14, LOW);
           Serial.println("Finished reading frame");
           Serial.flush();
 
           // Lets print out some of the first bytes and last bytes of the first couple of rows.
-          for (volatile uint16_t *pfb = pixels; pfb < (pixels + 4 * Camera.width()); pfb += Camera.width()) {
+          for (volatile uint16_t *pfb = frameBuffer; pfb < (frameBuffer + 4 * Camera.width()); pfb += Camera.width()) {
             Serial.printf("\n%08x: ", (uint32_t)pfb);
             for (uint16_t i = 0; i < 8; i++) Serial.printf("%04x ", pfb[i]);
             Serial.print("..");
@@ -314,8 +316,8 @@ void loop() {
           Serial.println("\n");
 
           // Lets dump out some of center of image.
-          Serial.println("Show Center pixels\n");
-          for (volatile uint16_t *pfb = pixels + Camera.width() * ((Camera.height() / 2) - 8); pfb < (pixels + Camera.width() * (Camera.height() / 2 + 8)); pfb += Camera.width()) {
+          Serial.println("Show Center frameBuffer\n");
+          for (volatile uint16_t *pfb = frameBuffer + Camera.width() * ((Camera.height() / 2) - 8); pfb < (frameBuffer + Camera.width() * (Camera.height() / 2 + 8)); pfb += Camera.width()) {
             Serial.printf("\n%08x: ", (uint32_t)pfb);
             for (uint16_t i = 0; i < 8; i++) Serial.printf("%04x ", pfb[i]);
             Serial.print("..");
@@ -330,20 +332,20 @@ void loop() {
 //int camera_width = Camera.width();
 #if 1
           //byte swap
-          //for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
-          for (int i = 0; i < numPixels; i++) pixels[i] = HTONS(pixels[i]);
+          //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+          for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
 
           if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
             if ((Camera.width() != tft.width()) || (Camera.height() != tft.height())) tft.fillScreen(BLACK);
-            tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), pixels);
+            tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), frameBuffer);
           } else {
             Serial.println("sub image");
             tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
-                                  Camera.width(), Camera.height(), pixels);
+                                  Camera.width(), Camera.height(), frameBuffer);
           }
 #else
           Serial.println("sub image1");
-          tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, Camera.width(), Camera.height(), pixels);
+          tft.writeSubImageRect(0, 0, tft.width(), tft.height(), 0, 0, Camera.width(), Camera.height(), frameBuffer);
 #endif
           ch = ' ';
           g_continuous_flex_mode = false;
@@ -351,7 +353,11 @@ void loop() {
         }
 
       case 'm':
-        read_display_multiple_frames();
+        read_display_multiple_frames(false);
+        break;
+
+      case 'M':
+        read_display_multiple_frames(true);
         break;
 
       case 'F':
@@ -460,8 +466,8 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 
 #if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_image(Stream *imgSerial) {
-  memset((uint8_t *)pixels, 0, sizeof(pixels));
-  Camera.readFrame(pixels);
+  memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
+  Camera.readFrame(frameBuffer);
 
   imgSerial->write(0xFF);
   imgSerial->write(0xAA);
@@ -471,8 +477,8 @@ void send_image(Stream *imgSerial) {
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
-    imgSerial->write((pixels[i] >> 8) & 0xFF);
-    imgSerial->write((pixels[i]) & 0xFF);
+    imgSerial->write((frameBuffer[i] >> 8) & 0xFF);
+    imgSerial->write((frameBuffer[i]) & 0xFF);
     delayMicroseconds(8);
   }
   imgSerial->write(0xBB);
@@ -485,12 +491,12 @@ void send_image(Stream *imgSerial) {
 //#if defined(USB_DUAL_SERIAL) || defined(USB_TRIPLE_SERIAL)
 void send_raw() {
   memset((uint8_t *)frameBuffer, 0, sizeof(frameBuffer));
-  Camera.readFrame(pixels);
+  Camera.readFrame(frameBuffer);
   uint32_t idx = 0;
   for (int i = 0; i < FRAME_HEIGHT * FRAME_WIDTH; i++) {
     idx = i * 2;
-    SerialUSB1.write((pixels[i] >> 8) & 0xFF);
-    SerialUSB1.write((pixels[i]) & 0xFF);
+    SerialUSB1.write((frameBuffer[i] >> 8) & 0xFF);
+    SerialUSB1.write((frameBuffer[i]) & 0xFF);
   }
 }
 #endif
@@ -500,6 +506,7 @@ void showCommandList() {
   Serial.println("Send the 'f' character to read a frame using FlexIO (changes hardware setup!)");
   Serial.println("Send the 'F' to start/stop continuous using FlexIO (changes hardware setup!)");
   Serial.println("Send the 'm' Read and display multiple frames...");
+  Serial.println("Send the 'M' Read and display multiple frames(do async TFT updates)...");
   Serial.println("Send the 'V' character DMA to TFT async continueous  ...");
   Serial.println("Send the 'p' character to snapshot to PC on USB1");
   Serial.println("Send the '1' character to blank the display");
@@ -508,8 +515,14 @@ void showCommandList() {
 }
 
 //=============================================================================
-void read_display_multiple_frames() {
-  Serial.println("\n*** Read and display multiple frames, press any key to stop ***");
+void read_display_multiple_frames(bool use_frame_buffer) {
+  if (use_frame_buffer) {
+    Serial.println("\n*** Read and display multiple frames (using async screen updates), press any key to stop ***");
+    tft.useFrameBuffer(true);
+  } else {
+    Serial.println("\n*** Read and display multiple frames, press any key to stop ***");
+  }
+
   while (Serial.read() != -1) {}
 
   elapsedMicros em = 0;
@@ -517,25 +530,32 @@ void read_display_multiple_frames() {
 
   for (;;) {
 
-    Camera.readFrame(pixels);
+    Camera.readFrame(frameBuffer);
 
     int numPixels = Camera.width() * Camera.height();
 
     //byte swap
-    //for (int i = 0; i < numPixels; i++) pixels[i] = (pixels[i] >> 8) | (((pixels[i] & 0xff) << 8));
-    for (int i = 0; i < numPixels; i++) pixels[i] = HTONS(pixels[i]);
+    //for (int i = 0; i < numPixels; i++) frameBuffer[i] = (frameBuffer[i] >> 8) | (((frameBuffer[i] & 0xff) << 8));
+    for (int i = 0; i < numPixels; i++) frameBuffer[i] = HTONS(frameBuffer[i]);
+
+    if (use_frame_buffer) tft.waitUpdateAsyncComplete();
 
     if ((Camera.width() <= tft.width()) && (Camera.height() <= tft.height())) {
       if ((Camera.width() != tft.width()) || (Camera.height() != tft.height())) tft.fillScreen(BLACK);
-      tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), pixels);
+      tft.writeRect(CENTER, CENTER, Camera.width(), Camera.height(), frameBuffer);
     } else {
       tft.writeSubImageRect(0, 0, tft.width(), tft.height(), (Camera.width() - tft.width()) / 2, (Camera.height() - tft.height()),
-                            Camera.width(), Camera.height(), pixels);
+                            Camera.width(), Camera.height(), frameBuffer);
     }
+
+    if (use_frame_buffer) tft.updateScreenAsync();
+
     frame_count++;
     if ((frame_count & 0x7) == 0) {
       Serial.printf("Elapsed: %u frames: %d fps: %.2f\n", (uint32_t)em, frame_count, (float)(1000000.0 / em) * (float)frame_count);
     }
     if (Serial.available()) break;
   }
+  // turn off frame buffer
+  tft.useFrameBuffer(false);
 }
